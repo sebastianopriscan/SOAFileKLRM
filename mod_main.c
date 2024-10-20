@@ -10,9 +10,9 @@
 #include <linux/syscalls.h>
 #include <linux/version.h>
 
-#include "api/api.h"
-#include "reconfig_access_manager/access_manager.h"
-#include "state_machine/state_machine.h"
+#include "include/api/api.h"
+#include "include/reconfig_access_manager/access_manager.h"
+#include "include/state_machine/state_machine.h"
 
 MODULE_AUTHOR("Sebastian Roberto Opriscan <sebastianroberto.opriscan@gmail.com>");
 MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to prevent write access \

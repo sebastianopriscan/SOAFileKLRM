@@ -10,7 +10,7 @@
 #include <linux/syscalls.h>
 #include <linux/version.h>
 
-#include "state_machine/state_machine.h"
+#include "../include/state_machine/state_machine.h"
 
 #define STATE_ON      0x4000000000000000
 #define STATE_OFF     0x0
@@ -33,10 +33,10 @@
 
 volatile unsigned long machine_state_atomic = 0UL ;
 
-void setup_state_machine() {
+void setup_state_machine(void) {
 }
 
-STATE_MACHINE_STATE state_machine_get_state() {
+STATE_MACHINE_STATE state_machine_get_state(void) {
     __sync_fetch_and_add(&machine_state_atomic, 1UL) ;
     switch ((machine_state_atomic & ~CLEAR_MACHINE)) {
         case STATE_ON : {
@@ -52,6 +52,7 @@ STATE_MACHINE_STATE state_machine_get_state() {
             return REC_OFF ;
         }
     }
+    return OFF ;
 }
 
 void state_machine_up(STATE_MACHINE_STATE state) {
@@ -71,6 +72,6 @@ void state_machine_up(STATE_MACHINE_STATE state) {
     }
 }
 
-void state_machine_down() {
+void state_machine_down(void) {
     __sync_fetch_and_sub(&machine_state_atomic, 1UL) ;
 }

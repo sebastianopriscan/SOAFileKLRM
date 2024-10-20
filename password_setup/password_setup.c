@@ -11,7 +11,7 @@
 #include <linux/version.h>
 #include <crypto/hash.h>
 
-#include "reconfig_access_manager/access_manager.h"
+#include "../include/reconfig_access_manager/access_manager.h"
 
 extern char hashed_password[512] ;
 
