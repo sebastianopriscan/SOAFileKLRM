@@ -1,4 +1,6 @@
-obj-m += mod_main.o api/api.c password_setup/password_setup.c password_setup/password.c state_machine/state_machine.c
+obj-m += klrm.o
+
+klrm-y := mod_main.o $(wildcard state_machine/*) $(wildcard password_setup/*) $(wildcard api/*)
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules 
