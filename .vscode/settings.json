@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "version.h": "c",
+        "printk.h": "c",
+        "crypto.h": "c",
+        "hash.h": "c"
+    }
+}
