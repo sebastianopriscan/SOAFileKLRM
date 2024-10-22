@@ -6,6 +6,6 @@ password=
 
 read password
 
-hash=`echo $password | sha512sum`
+hash=`echo ${password} | sha512sum`
 
-echo "char hashed_password[128] = \"${hash:0:-3}\" ;" > ./password_setup/password.c
+echo "char hashed_password[129] = \"${hash:0:-3}\" ;" > ./password_setup/password.c

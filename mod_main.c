@@ -21,6 +21,7 @@ MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to p
 #define MODNAME "SOAFileKLRM"
 
 static int klrm_init(void) {
+	setup_password() ;
 	setup_api() ;
 	setup_state_machine() ;
 

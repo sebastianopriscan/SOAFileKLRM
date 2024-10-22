@@ -13,6 +13,7 @@
 #include <linux/fs_struct.h>
 
 #include "../include/api/api.h"
+#include "../include/reconfig_access_manager/access_manager.h"
 
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
@@ -26,38 +27,34 @@ static int dev_release(struct inode *inode, struct file *file) {
     return 0 ;
 }
 
-static int Major ;
+static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len, loff_t * off) {
+    char write_buffer[128] ;
+    printk("klrm: inside api write");
+    memset(write_buffer, 0, 128) ;
+    printk("klrm: memset on stack buffer to 0") ;
+    copy_from_user(write_buffer, udata, udata_len < 127 ? udata_len : 127) ;
+    printk("klrm: copied data from userspace") ;
+    check_password(write_buffer) ;
+
+    return udata_len;
+}
+
+unsigned int major ;
+module_param(major, uint, 0400) ;
 
 static struct file_operations fops = {
     .owner = THIS_MODULE,
     .open = dev_open,
-    .release = dev_release
+    .release = dev_release,
+    .write = dev_write
 } ;
 
-static struct dentry node_dentry ;
-struct dentry *dev_dentry ;
-
 int setup_api(void) {
-    Major = __register_chrdev(0,0, 256, API_DEV_NAME, &fops) ;
+    major = __register_chrdev(0,0, 256, API_DEV_NAME, &fops) ;
 
-    node_dentry.d_name.name = API_DEV_NAME ;
-    node_dentry.d_name.len = strlen(API_DEV_NAME) ;
-//    node_dentry.d_name.len = strlen(API_DEV_NAME) ;
-//
-//    struct qstr name ;
-//    name.name = "/dev" ;
-//    name.len = 4 ;
-//    dev_dentry = d_lookup(current->fs->root.dentry, &name) ;
-//    if(IS_ERR(dev_dentry)) {
-//        printk(KERN_ERR, "Error opening dentry, details: %d", PTR_ERR(dev_dentry)) ;
-//        return 1 ;
-//    }
-//
-//    return vfs_mknod(dev_dentry->d_inode, &node_dentry, O_WRONLY | S_IFCHR, MKDEV(Major,0)) ;
-    return 0;
+    return 0 ;
 }
 
 void cleanup_api(void) {
-    unregister_chrdev(Major, API_DEV_NAME) ;
-    //vfs_unlink(dev_dentry->d_inode, &node_dentry, NULL) ;
+    unregister_chrdev(major, API_DEV_NAME) ;
 }
