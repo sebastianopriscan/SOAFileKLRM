@@ -12,8 +12,8 @@
 #include <linux/fdtable.h>
 #include <linux/fs_struct.h>
 
-#include "../include/api/api.h"
-#include "../include/reconfig_access_manager/access_manager.h"
+#include "include/api/api.h"
+#include "include/reconfig_access_manager/access_manager.h"
 
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
@@ -39,6 +39,10 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     return udata_len;
 }
 
+static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long argp) {
+    return 0 ;
+}
+
 unsigned int major ;
 module_param(major, uint, 0400) ;
 
@@ -46,7 +50,8 @@ static struct file_operations fops = {
     .owner = THIS_MODULE,
     .open = dev_open,
     .release = dev_release,
-    .write = dev_write
+    .write = dev_write,
+    .unlocked_ioctl = dev_ioctl
 } ;
 
 int setup_api(void) {

@@ -10,7 +10,7 @@
 #include <linux/syscalls.h>
 #include <linux/version.h>
 
-#include "../include/state_machine/state_machine.h"
+#include "include/state_machine/state_machine.h"
 
 #define STATE_ON      0x4000000000000000
 #define STATE_OFF     0x0
