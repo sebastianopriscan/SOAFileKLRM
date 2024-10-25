@@ -14,21 +14,164 @@
 
 #define MODNAME "SOAFileKLRM"
 
+#define ARGS_SIZE 512
+
+#define init_store_entry(ptr) \
+do {\
+    memset(ptr, 0, sizeof(store_entry)) ; \
+    spin_lock_init(&(ptr->lock)) ; \
+    ptr->children.prev = &(ptr->children) ; \
+    ptr->children.next = &(ptr->children) ; \
+} while(0)\
+
+
+
+/*
+    struct list_head *curr_entry = &(root->children) ;
+    struct list_head *tmp ;
+    store_entry *child ;
+    unsigned int j = 0 ;
+    unsigned int deepness = 0 ;
+
+    j = process_path(path) ;
+*/
+#define PATH_SEARCH_LOOP(LOOP_LABEL) \
+LOOP_LABEL: \
+ \
+    list_for_each(tmp, curr_entry) { \
+        child = list_entry(tmp, store_entry, siblings) ; \
+        if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
+            spinlock_t *oldLock = &(list_entry(curr_entry, store_entry, children)->lock) ; \
+            curr_entry = &(child->children) ; \
+            deepness++ ; \
+            goto LOOP_LABEL ; \
+        } \
+    } \
+
+
+
 struct _store_entry {
-    klrm_path path ;
-    struct list_head node ;
+    spinlock_t lock ;
+    char dir_name[1024] ;
+    struct list_head siblings ;
+    struct list_head children ;
+    unsigned char isLeaf ;
 } ;
 typedef struct _store_entry store_entry ;
 
-static struct list_head list_endpoints ;
-static struct kmem_cache *store_cache ;
+store_entry *root ;
+
+static struct kmem_cache *dir_cache ;
+
+unsigned int argIdxs[ARGS_SIZE] ;
+
+rwlock_t store_lock ;
+
+static inline unsigned int process_path(klrm_path *path) {
+    unsigned int i, j ;
+    int length = strlen(path->pathName) ;
+
+    for (i = 0, j = 0; i < (unsigned int) length; i++) {
+        if (path->pathName[i] == '/') {
+            path->pathName[i] = '\0' ;
+            if (j == ARGS_SIZE) {
+                printk("%s: Error, path tokens length exceeded", MODNAME) ;
+                return UINT_MAX ;
+            }
+            argIdxs[j++] = i+1 ;
+            if (i == ((unsigned int) length) -1) {
+                printk("%s: Error, path is a directory", MODNAME) ;
+                return UINT_MAX ;
+            }
+        }
+    }
+
+    return j ;
+}
 
 int path_store_add(klrm_path *path) {
+
+    struct list_head *curr_entry = &(root->children) ;
+    struct list_head *tmp ;
+    store_entry *child ;
+    unsigned int j ;
+    unsigned int deepness = 0 ;
+
+    j = process_path(path) ;
+    if (j == UINT_MAX) return 1 ;
+
+    write_lock(&store_lock) ;
+
+    PATH_SEARCH_LOOP(LOOP_ADD)
+
+    if (deepness != j +1) {
+        if (list_entry(curr_entry, store_entry, children)->isLeaf) {
+            printk("%s: Warning, element of path passed as dir but actually file") ;
+            write_unlock(&store_lock) ;
+            return 1 ;
+        }
+        store_entry *newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
+        init_store_entry(newChild) ;
+        memcpy(newChild->dir_name, path->pathName + argIdxs[deepness],
+            strlen(path->pathName + argIdxs[deepness])) ;
+
+        list_add(&newChild->siblings, curr_entry) ;
+        goto LOOP_ADD ;
+    }
+
+    list_entry(curr_entry, store_entry, children)->isLeaf = 1 ;
+    
+    write_unlock(&store_lock) ;
+
     return 0 ;
 }
 
 int path_store_rm(klrm_path *path) {
+
+    struct list_head *curr_entry = &(root->children) ;
+    struct list_head *tmp ;
+    store_entry *child ;
+    unsigned int j ;
+    unsigned int deepness = 0 ;
+
+    j = process_path(path) ;
+    if (j == UINT_MAX) return 1 ;
+    
+    write_lock(&store_lock) ;
+
+    PATH_SEARCH_LOOP(LOOP_RM)
+
+    if (deepness == j +1) {
+        store_entry *child = list_entry(curr_entry, store_entry, children) ;
+        list_del(&(child->siblings)) ;
+        kmem_cache_free(dir_cache, child) ;
+    } else {
+        write_unlock(&store_lock) ;
+        return 1 ;
+    }
+
+    write_unlock(&store_lock) ;
     return 0 ;
+}
+
+int path_store_check(klrm_path *path) {
+
+    struct list_head *curr_entry = &(root->children) ;
+    struct list_head *tmp ;
+    store_entry *child ;
+    unsigned int j ;
+    unsigned int deepness = 0 ;
+
+    j = process_path(path) ;
+    if (j == UINT_MAX) return 1 ;
+
+    read_lock(&store_lock) ;
+
+    PATH_SEARCH_LOOP(LOOP_CHK)
+
+    read_unlock(&store_lock) ;
+
+    return deepness == j+1 ? 1 : 0 ;
 }
 
 static void setup_area(void *buffer) {
@@ -37,21 +180,31 @@ static void setup_area(void *buffer) {
 
 int setup_path_store(void) {
 
-    list_endpoints.next = NULL ;
-    list_endpoints.prev = NULL ;
+    rwlock_init(&store_lock) ;
 
-    store_cache = kmem_cache_create(
-        MODNAME,
-        sizeof(store_entry) & (~(0UL) << 11UL ),
-        sizeof(store_entry) & (~(0UL) << 11UL ),
+    dir_cache = kmem_cache_create(
+        MODNAME"_dirs",
+        2048,
+        2048,
         SLAB_POISON,
         setup_area
     );
 
-    if (store_cache == NULL) {
-        printk("%s: Unable to allocate kmem cache") ;
+    if (dir_cache == NULL) {
+        printk("%s: Unable to allocate kmem dir cache") ;
         return 1 ;
     }
+
+    root = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
+    if (root == NULL) {
+        kmem_cache_destroy(dir_cache) ;
+        printk("%s: Unable to get root structure") ;
+        return 1 ;
+    }
+
+    init_store_entry(root) ;
+    root->dir_name[0] = '/' ;
+
 
     return 0 ;
 }

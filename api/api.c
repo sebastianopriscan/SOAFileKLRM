@@ -18,6 +18,11 @@
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
 
+static struct kmem_cache *path_cache ;
+
+static void setup_area(void *buffer) {
+
+}
 
 static int dev_open(struct inode *inode, struct file *file) {
     return 0 ;
@@ -55,11 +60,26 @@ static struct file_operations fops = {
 } ;
 
 int setup_api(void) {
+
+    path_cache = kmem_cache_create(
+        MODNAME"_paths",
+        8192,
+        8192,
+        SLAB_POISON,
+        setup_area
+    );
+
+    if (path_cache == NULL) {
+        printk("%s: Unable to allocate kmem path cache") ;
+        return 1 ;
+    }
+
     major = __register_chrdev(0,0, 256, API_DEV_NAME, &fops) ;
 
     return 0 ;
 }
 
 void cleanup_api(void) {
+    kmem_cache_destroy(path_cache) ;
     unregister_chrdev(major, API_DEV_NAME) ;
 }

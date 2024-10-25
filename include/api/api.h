@@ -21,7 +21,7 @@ and the parameters'length will be passed in the remaining byte
 #define ADD_PATH 0x00000000
 
 struct _klrm_path {
-    char pathName[1024] ;
+    char pathName[4096] ;
 } ;
 typedef struct _klrm_path klrm_path ;
 
@@ -37,7 +37,7 @@ typedef struct _klrm_path klrm_path ;
 #define RM_PATH 0x80000000
 
 //struct _klrm_path {
-//    char pathName[1024] ;
+//    char pathName[4096] ;
 //} ;
 
 //Lifecycle operations
