@@ -75,7 +75,9 @@ static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long arg
         return -EACCES ;
     }
 
-    printk("%s: Copied data from user buffer") ;
+    printk("%s: Copied data from user buffer", MODNAME) ;
+
+    printk("%s code is %#08x, code & CODE_MASK is %#08x", MODNAME, code, code & CODE_MASK) ;
 
     switch (code & CODE_MASK) {
         case ADD_PATH :
@@ -83,7 +85,7 @@ static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long arg
             kmem_cache_free(input_cache, argp_copied) ;
             return retval ;
         case RM_PATH :
-            retval = klrm_path_add(argp_copied) ;
+            retval = klrm_path_rm(argp_copied) ;
             kmem_cache_free(input_cache, argp_copied) ;
             return retval ;
 

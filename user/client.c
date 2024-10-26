@@ -32,13 +32,15 @@ int main(int argc, char **argv) {
     }
 
     if (strcmp(argv[1], "add") == 0) {
-        int retval = ioctl(fd, sizeof(klrm_input), input) ;
+        fprintf(stderr, "Inside add path\n") ;
+        int retval = ioctl(fd, (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
 
     if (strcmp(argv[1], "rm") == 0) {
-        int retval = ioctl(fd, 0x80000000 | sizeof(klrm_input), input) ;
+        fprintf(stderr, "Inside rm path\n") ;
+        int retval = ioctl(fd, 0x80000000 | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
