@@ -41,7 +41,6 @@ LOOP_LABEL: \
     list_for_each(tmp, curr_entry) { \
         child = list_entry(tmp, store_entry, siblings) ; \
         if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
-            spinlock_t *oldLock = &(list_entry(curr_entry, store_entry, children)->lock) ; \
             curr_entry = &(child->children) ; \
             deepness++ ; \
             goto LOOP_LABEL ; \
@@ -105,12 +104,14 @@ int path_store_add(klrm_path *path) {
     PATH_SEARCH_LOOP(LOOP_ADD)
 
     if (deepness != j +1) {
+        store_entry *newChild ;
+
         if (list_entry(curr_entry, store_entry, children)->isLeaf) {
-            printk("%s: Warning, element of path passed as dir but actually file") ;
+            printk("%s: Warning, element of path passed as dir but actually file", MODNAME) ;
             write_unlock(&store_lock) ;
             return 1 ;
         }
-        store_entry *newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
+        newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
         init_store_entry(newChild) ;
         memcpy(newChild->dir_name, path->pathName + argIdxs[deepness],
             strlen(path->pathName + argIdxs[deepness])) ;
@@ -191,14 +192,14 @@ int setup_path_store(void) {
     );
 
     if (dir_cache == NULL) {
-        printk("%s: Unable to allocate kmem dir cache") ;
+        printk("%s: Unable to allocate kmem dir cache", MODNAME) ;
         return 1 ;
     }
 
     root = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
     if (root == NULL) {
         kmem_cache_destroy(dir_cache) ;
-        printk("%s: Unable to get root structure") ;
+        printk("%s: Unable to get root structure", MODNAME) ;
         return 1 ;
     }
 
@@ -209,6 +210,14 @@ int setup_path_store(void) {
     return 0 ;
 }
 
-void cleanup_path_store(void) {
+struct pointer_stack {
+    struct pointer_stack *above ;
+    void *pointer ;
+} ;
 
+void cleanup_path_store(void) {
+    struct pointer_stack *top ;
+
+    write_lock(&store_lock) ;
+    write_unlock(&store_lock) ;
 }

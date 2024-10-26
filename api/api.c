@@ -18,7 +18,9 @@
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
 
-static struct kmem_cache *path_cache ;
+#define CODE_MASK 0xc0000000
+
+static struct kmem_cache *input_cache ;
 
 static void setup_area(void *buffer) {
 
@@ -45,7 +47,46 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
 }
 
 static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long argp) {
-    return 0 ;
+
+    unsigned int size ;
+    unsigned int copied ;
+    ssize_t retval ;
+    klrm_input *argp_copied  ;
+
+    argp_copied = kmem_cache_alloc(input_cache, GFP_KERNEL) ; ;
+ 
+    if (argp_copied == NULL) {
+        printk("%s: Error allocating buffer for copying", MODNAME) ;
+        return -ENOMEM ;
+    }
+
+    size = code & ~CODE_MASK ;
+    if(size != sizeof(klrm_input)) { 
+        printk("%s: Data pointed by argp was not of correct size", MODNAME) ; 
+        return 1 ; 
+    } 
+
+    copied = copy_from_user(argp_copied, (void *) argp, size) ;
+    if (copied != size) {
+        printk("%s: Error, unable to copy all memory from user", MODNAME) ;
+        kmem_cache_free(input_cache, argp_copied) ;
+        return -EACCES ;
+    }
+
+    switch (code & CODE_MASK) {
+        case ADD_PATH :
+            retval = klrm_path_add(argp_copied) ;
+            kmem_cache_free(input_cache, argp_copied) ;
+            return retval ;
+        case RM_PATH :
+            retval = klrm_path_add(argp_copied) ;
+            kmem_cache_free(input_cache, argp_copied) ;
+            return retval ;
+
+        default :
+            printk("%s: Invoked non-existant operation", MODNAME) ;
+            return -EOPNOTSUPP ;
+    }
 }
 
 unsigned int major ;
@@ -61,7 +102,7 @@ static struct file_operations fops = {
 
 int setup_api(void) {
 
-    path_cache = kmem_cache_create(
+    input_cache = kmem_cache_create(
         MODNAME"_paths",
         8192,
         8192,
@@ -69,8 +110,8 @@ int setup_api(void) {
         setup_area
     );
 
-    if (path_cache == NULL) {
-        printk("%s: Unable to allocate kmem path cache") ;
+    if (input_cache == NULL) {
+        printk("%s: Unable to allocate kmem path cache", MODNAME) ;
         return 1 ;
     }
 
@@ -80,6 +121,5 @@ int setup_api(void) {
 }
 
 void cleanup_api(void) {
-    kmem_cache_destroy(path_cache) ;
     unregister_chrdev(major, API_DEV_NAME) ;
 }

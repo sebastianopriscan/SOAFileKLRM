@@ -49,7 +49,7 @@ int setup_password(void) {
     unsigned char charToTransform ;
 
     if (strlen(hashed_password) != 128) {
-        printk(KERN_ERR, "Error: provided password hash is incorrect") ;
+        printk("klrm: Error: provided password hash is incorrect") ;
         return 1 ;
     }
 
@@ -77,13 +77,14 @@ int setup_password(void) {
 }
 
 int check_password(char *password) {
-    printk("klrm: Entered check password") ;
 
     struct crypto_shash *tfm;
     //TODO: CHECK WITH USING KMALLOC IN CSE OF CHANGES IN CIPHER/CIPHER INTERNALS
     char desc[sizeof(struct shash_desc) + 208];
     unsigned char hash[128];
     int ret;
+    
+    printk("klrm: Entered check password") ;
 
     tfm = crypto_alloc_shash("sha512", 0, 0);
     if (IS_ERR(tfm)) {
