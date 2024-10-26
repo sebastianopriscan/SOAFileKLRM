@@ -20,6 +20,7 @@ int main(int argc, char **argv) {
     }
 
     klrm_input *input = malloc(sizeof(klrm_input)) ;
+    memset(input, 0, sizeof(klrm_input)) ;
 
     strcpy(input->password, argv[2]) ;
     strcpy(input->path.path, argv[3]) ;

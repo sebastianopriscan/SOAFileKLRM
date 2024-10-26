@@ -18,7 +18,7 @@
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
 
-#define CODE_MASK 0xc0000000
+#define CODE_MASK 0xc0000000U
 
 static struct kmem_cache *input_cache ;
 
@@ -57,21 +57,25 @@ static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long arg
  
     if (argp_copied == NULL) {
         printk("%s: Error allocating buffer for copying", MODNAME) ;
+        kmem_cache_free(input_cache, argp_copied) ;
         return -ENOMEM ;
     }
 
     size = code & ~CODE_MASK ;
     if(size != sizeof(klrm_input)) { 
         printk("%s: Data pointed by argp was not of correct size", MODNAME) ; 
+        kmem_cache_free(input_cache, argp_copied) ;
         return 1 ; 
     } 
 
     copied = copy_from_user(argp_copied, (void *) argp, size) ;
-    if (copied != size) {
-        printk("%s: Error, unable to copy all memory from user", MODNAME) ;
+    if (copied != 0) {
+        printk("%s: Error, unable to copy all memory from user, copied %d of %d", MODNAME, copied, size) ;
         kmem_cache_free(input_cache, argp_copied) ;
         return -EACCES ;
     }
+
+    printk("%s: Copied data from user buffer") ;
 
     switch (code & CODE_MASK) {
         case ADD_PATH :

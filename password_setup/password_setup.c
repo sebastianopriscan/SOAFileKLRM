@@ -112,7 +112,7 @@ int check_password(char *password) {
     printk("klrm: ran crypto_shash_init") ;
     //DEBUG crypto_free_shash(tfm) ;
 
-
+    printk("klrm: password is %s, len is %ld", password, strlen(password)) ;
     ret = crypto_shash_update((struct shash_desc *)desc, (const u8 *)password, strlen(password));
     if (ret) {
         printk("Failed to update hash: %d\n", ret);

@@ -23,11 +23,17 @@ ssize_t klrm_path_add(klrm_input *input) {
 
     state_machine_up(REC_ON) ;
 
+    printk("klrm: Got state machine in REC_ON mode") ;
+
     if (check_password(input->password) != 0) {
         return -EACCES ;
     }
 
+    printk("klrm: managed to check password") ;
+
     ret = path_store_add(&input->path) ;
+
+    printk("klrm: added entry to path store") ;
 
     state_machine_down() ;
     return ret ;
