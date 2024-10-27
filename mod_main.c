@@ -14,6 +14,7 @@
 #include "include/reconfig_access_manager/access_manager.h"
 #include "include/state_machine/state_machine.h"
 #include "include/path_store/path_store.h"
+#include "include/wrappers/wrappers.h"
 
 MODULE_AUTHOR("Sebastian Roberto Opriscan <sebastianroberto.opriscan@gmail.com>");
 MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to prevent write access \
@@ -24,6 +25,7 @@ MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to p
 static int klrm_init(void) {
 	setup_state_machine() ;
 	setup_password() ;
+	setup_wrappers() ;
 	if(setup_path_store() != 0) {
 		return 1 ;
 	}
@@ -36,6 +38,7 @@ static int klrm_init(void) {
 }
 
 static void  klrm_exit(void) {
+	cleanup_wrappers() ;
 	cleanup_path_store() ;
 	cleanup_api() ;
 }
