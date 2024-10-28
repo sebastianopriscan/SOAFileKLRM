@@ -8,13 +8,14 @@ klrm-y := mod_main.o api/api.o api/ioctl.o
 klrm-y += password_setup/password_setup.o password_setup/password.o
 klrm-y += state_machine/state_machine.o path_store/path_store.o
 klrm-y += lib/scth/scth.o wrappers/wrappers.o
+klrm-y += probes/probes.o
 
 else
 
-TABLE_ADDR = $(shell cat /sys/module/the_usctm/parameters/sys_call_table_address)
+TABLE_ADDR = $(shell sudo cat /sys/module/the_usctm/parameters/sys_call_table_address)
 
 start:
-	sudo insmod klrm.ko the_syscall_table=$(A)
+	sudo insmod klrm.ko the_syscall_table=$(TABLE_ADDR)
 	sudo mknod /dev/klrm-api c $$(sudo cat /sys/module/klrm/parameters/major) 0
 
 stop:

@@ -15,6 +15,7 @@
 #include "include/state_machine/state_machine.h"
 #include "include/path_store/path_store.h"
 #include "include/wrappers/wrappers.h"
+#include "include/probes/probes.h"
 
 MODULE_AUTHOR("Sebastian Roberto Opriscan <sebastianroberto.opriscan@gmail.com>");
 MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to prevent write access \
@@ -23,6 +24,7 @@ MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to p
 #define MODNAME "SOAFileKLRM"
 
 static int klrm_init(void) {
+	if (hook_init() < 0) return -1 ;
 	setup_state_machine() ;
 	setup_password() ;
 	setup_wrappers() ;
@@ -38,6 +40,7 @@ static int klrm_init(void) {
 }
 
 static void  klrm_exit(void) {
+	hook_exit() ;
 	cleanup_wrappers() ;
 	cleanup_path_store() ;
 	cleanup_api() ;

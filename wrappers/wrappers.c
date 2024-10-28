@@ -14,6 +14,7 @@
 #include "include/state_machine/state_machine.h"
 #include "include/path_store/path_store.h"
 #include "include/scth/scth.h"
+#include "include/probes/probes.h"
 
 #define MODNAME "SOAFileKLRM"
 
@@ -27,14 +28,13 @@ unsigned long the_syscall_table = 0x0;
 module_param(the_syscall_table, ulong, 0660);
 
 #define WRAP_CALL(invocation, write_open_check, from_expr, expr_len, interdiction_return) \
-    int __wrap_count ; \
-    printk("%s: Inside a syscall wrapper", MODNAME) ; \
+    printk("Wrapping open") ; \
     if(!write_open_check) { \
         invocation \
     }\
-    state_machine_up(ON) ; \
     \
-    klrm_path *path = kmalloc(sizeof(klrm_path), GFP_ATOMIC) ; \
+    klrm_path *path = kmalloc(sizeof(klrm_path), GFP_KERNEL) ; \
+    printk("klrm: Kmlloc'd") ; \
     if (path == NULL) { \
         printk("%s: Error allocating path to check with kmalloc", MODNAME) ; \
         kfree(path) ; \
@@ -45,22 +45,19 @@ module_param(the_syscall_table, ulong, 0660);
         kfree(path) ; \
         return interdiction_return ; \
     } \
-    if (path_store_check(path)) { \
-        kfree(path) ; \
-        return interdiction_return ; \
-    } \
     kfree(path) ; \
     invocation \
 
 
 /****************** Open Wrapper Start *************************/
+unsigned long original_open_addr ;
+long (*do_sys_open_addr)(int, const char __user *, int, umode_t) ;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,17,0)
-long (*original_open_addr)(struct pt_regs *) ;
-long __x64_sys_klrm_open(struct pt_regs *regs) {
-    WRAP_CALL(return original_open_addr(regs) ;,
-        (get(regs)->si & O_RDWR || get(regs)->si & O_WRONLY || get(regs)->si & O_APPEND),
-        get(regs)->di, strlen(get(regs)->di), -EACCES)
+__SYSCALL_DEFINEx(3, _klrm_open, char *, filename, int, flags, int, mode) {
+    WRAP_CALL(if (force_o_largefile()) flags |= O_LARGEFILE; return do_sys_open_addr(AT_FDCWD, filename, flags, mode);,
+        (flags & O_RDWR || flags & O_WRONLY || flags & O_APPEND),
+        filename, strlen(filename), -EACCES)
 }
 #else
 long (*original_open_addr)(const char *, int, int) ;
@@ -84,12 +81,16 @@ int setup_wrappers(void) {
 	   printk("%s: cannot manage sys_call_table address set to 0x0\n",MODNAME);
 	   return -1;
 	}
+    
+    do_sys_open_addr = (long (*)(int, const char *, int, umode_t))(get_do_open_addr()) ;
 
     unprotect_memory() ;
 
     //Open Wrapper Install
+    printk("%s : original open address is: %ld", MODNAME, original_open_addr) ;
     original_open_addr = __sync_val_compare_and_swap(&((unsigned long *)the_syscall_table)[OPEN_IDX],
         ((unsigned long *)the_syscall_table)[OPEN_IDX], sys_klrm_open) ;
+    printk("%s : original open address is: %ld", MODNAME, original_open_addr) ;
 
     protect_memory() ;
 
