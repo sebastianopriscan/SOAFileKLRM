@@ -36,23 +36,13 @@ volatile unsigned long machine_state_atomic = 0UL ;
 void setup_state_machine(void) {
 }
 
-STATE_MACHINE_STATE state_machine_get_state(void) {
+int state_machine_try_get_on() {
     __sync_fetch_and_add(&machine_state_atomic, 1UL) ;
-    switch ((machine_state_atomic & ~CLEAR_MACHINE)) {
-        case STATE_ON : {
-            return ON ;
-        }
-        case STATE_OFF : {
-            return OFF ;
-        }
-        case STATE_REC_ON : {
-            return REC_ON ;
-        }
-        case STATE_REC_OFF : {
-            return REC_OFF ;
-        }
+    if (machine_state_atomic & STATE_ON) return 0 ;
+    else {
+        __sync_fetch_and_sub(&machine_state_atomic, 1UL) ;
+        return 1 ;
     }
-    return OFF ;
 }
 
 void state_machine_up(STATE_MACHINE_STATE state) {

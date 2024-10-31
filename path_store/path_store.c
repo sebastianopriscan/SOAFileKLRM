@@ -45,7 +45,7 @@ LOOP_LABEL: \
         if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
             curr_entry = &(child->children) ; \
             deepness++ ; \
-            goto LOOP_LABEL ; \
+            if (deepness != j) goto LOOP_LABEL ; \
         } \
     } \
 
@@ -53,10 +53,11 @@ LOOP_LABEL: \
 
 struct _store_entry {
     spinlock_t lock ;
+    struct _store_entry *parent ;
     char dir_name[1024] ;
     struct list_head siblings ;
     struct list_head children ;
-    unsigned char isLeaf ;
+    unsigned long children_num ;
 } ;
 typedef struct _store_entry store_entry ;
 
@@ -79,10 +80,8 @@ static inline unsigned int process_path(klrm_path *path) {
                 printk("%s: Error, path tokens length exceeded", MODNAME) ;
                 return UINT_MAX ;
             }
-            argIdxs[j++] = i+1 ;
-            if (i == ((unsigned int) length) -1) {
-                printk("%s: Error, path is a directory", MODNAME) ;
-                return UINT_MAX ;
+            if (i != ((unsigned int) length) -1) {
+                argIdxs[j++] = i+1 ;
             }
         }
     }
@@ -105,12 +104,17 @@ int path_store_add(klrm_path *path) {
 
     PATH_SEARCH_LOOP(LOOP_ADD)
 
-    if (deepness != j +1) {
+    if (deepness != j ) {
         store_entry *newChild ;
-
+        store_entry *actualCurrent ;
+/*
         if (list_entry(curr_entry, store_entry, children)->isLeaf) {
             printk("%s: Warning, element of path passed as dir but actually file", MODNAME) ;
             write_unlock(&store_lock) ;
+            return 1 ;
+        }
+*/
+        if (strlen(path->pathName + argIdxs[deepness]) == 0) {
             return 1 ;
         }
         newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
@@ -119,10 +123,13 @@ int path_store_add(klrm_path *path) {
             strlen(path->pathName + argIdxs[deepness])) ;
 
         list_add(&newChild->siblings, curr_entry) ;
+        actualCurrent = list_entry(curr_entry, store_entry, children) ;
+        newChild->parent = actualCurrent ;
+        __sync_fetch_and_add(&(actualCurrent->children_num), 1UL) ;
         goto LOOP_ADD ;
     }
 
-    list_entry(curr_entry, store_entry, children)->isLeaf = 1 ;
+    //list_entry(curr_entry, store_entry, children)->isLeaf = 1 ;
     
     write_unlock(&store_lock) ;
 
@@ -144,10 +151,15 @@ int path_store_rm(klrm_path *path) {
 
     PATH_SEARCH_LOOP(LOOP_RM)
 
-    if (deepness == j +1) {
-        store_entry *child = list_entry(curr_entry, store_entry, children) ;
-        list_del(&(child->siblings)) ;
-        kmem_cache_free(dir_cache, child) ;
+    if (deepness == j) {
+        store_entry *actualCurrent = list_entry(curr_entry, store_entry, children) ;
+        if (actualCurrent->children_num != 0) {
+            write_unlock(&store_lock) ;
+            return 1 ;
+        }
+        actualCurrent->parent->children_num-- ;
+        list_del(&(actualCurrent->siblings)) ;
+        kmem_cache_free(dir_cache, actualCurrent) ;
     } else {
         write_unlock(&store_lock) ;
         return 1 ;

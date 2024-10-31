@@ -10,7 +10,7 @@ typedef enum _STATE_MACHINE_STATE {
 
 void setup_state_machine(void) ;
 
-STATE_MACHINE_STATE state_machine_get_state(void) ;
+int state_machine_try_get_on() ;
 
 void state_machine_up(STATE_MACHINE_STATE) ;
 void state_machine_down(void) ;
