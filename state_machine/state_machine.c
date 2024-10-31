@@ -36,7 +36,7 @@ volatile unsigned long machine_state_atomic = 0UL ;
 void setup_state_machine(void) {
 }
 
-int state_machine_try_get_on() {
+int state_machine_try_get_on(void) {
     __sync_fetch_and_add(&machine_state_atomic, 1UL) ;
     if (machine_state_atomic & STATE_ON) return 0 ;
     else {
