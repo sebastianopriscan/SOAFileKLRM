@@ -176,6 +176,7 @@ int path_store_check(klrm_path *path) {
     store_entry *child ;
     unsigned int j ;
     unsigned int deepness = 0 ;
+    int retVal ;
 
     j = process_path(path) ;
     if (j == UINT_MAX) return 1 ;
@@ -184,9 +185,11 @@ int path_store_check(klrm_path *path) {
 
     PATH_SEARCH_LOOP(LOOP_CHK)
 
+    retVal = list_empty(curr_entry) ;
+
     read_unlock(&store_lock) ;
 
-    return deepness == j+1 ? 1 : 0 ;
+    return (retVal == 1 && curr_entry != &(root->children)) || (deepness == j ? 1 : 0 && j != 0) ;
 }
 
 static void setup_area(void *buffer) {
@@ -230,8 +233,6 @@ struct pointer_stack {
 } ;
 
 void cleanup_path_store(void) {
-    struct pointer_stack *top ;
-
     write_lock(&store_lock) ;
     write_unlock(&store_lock) ;
 }

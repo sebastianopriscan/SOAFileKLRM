@@ -25,14 +25,14 @@ uint64_t file_size ;
 
 ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
 
-    read_lock(&log_file_lock) ;
-
     struct buffer_head *bh = NULL;
     struct inode * the_inode = filp->f_inode;
     uint64_t file_size = the_inode->i_size;
     int ret;
     loff_t offset, circular_pos;
     int block_to_read;//index of the block to be read from device
+
+    read_lock(&log_file_lock) ;
 
     printk("%s: read operation called with len %ld - and offset %lld (the current file size is %lld)",MOD_NAME, len, *off, file_size);
 

@@ -9,6 +9,7 @@
 #include <linux/ptrace.h>       
 #include <linux/syscalls.h>
 #include <linux/version.h>
+#include <linux/kernel_read_file.h>
 #include <crypto/hash.h>
 
 #include "include/logger/logger.h"
@@ -62,7 +63,16 @@ void decompress_hash(unsigned char *compressed_hash, char *buffer) {
 
 static void do_log_work(unsigned long data) {
     logging_work *payload = container_of((void *)data, logging_work, work_ref) ;
-    char *log, contentbuff ;
+    char *log ;
+    void *contentbuff ;
+    int readTot ;
+    size_t filesize ;
+
+    struct crypto_shash *tfm;
+    //TODO: CHECK WITH USING KMALLOC IN CSE OF CHANGES IN CIPHER/CIPHER INTERNALS
+    char desc[sizeof(struct shash_desc) + 208];
+    unsigned char hash[128];
+    int ret;
 
     log = kzalloc(4096+2048, GFP_KERNEL) ;
     if (log == NULL) {
@@ -71,48 +81,24 @@ static void do_log_work(unsigned long data) {
     }
 
     sprintf(log,"TGID:%d;PID:%d;UID:%d;EUID:%d;exe:%s;hash:",
-        payload->tgid, payload->pid, payload->uid, payload->euid, payload->pathname) ;
+        payload->tgid, payload->pid, payload->uid.val, payload->euid.val, payload->pathname) ;
 
-    struct file *toOpen = filp_open(payload->pathname, O_RDONLY, 0) ;
-    if (IS_ERR(toOpen)) {
-        printk("SOAFileKLRM : Unable to open file, skipping hash evaluation") ;
+
+    contentbuff = NULL ;
+    readTot = kernel_read_file_from_path(payload->pathname, 0, &contentbuff, 0, &filesize, READING_UNKNOWN) ;
+    if (readTot < 0) {
+        printk("SOAFileKLRM : Unable to open file %s for dumping", payload->pathname) ;
         sprintf(log + strlen(log), "unavailable\n") ;
         goto DO_DUMP ;
     }
-
-    contentbuff = kmalloc(131072, GFP_KERNEL) ;
-    if (contentbuff == NULL) {
-        printk("SOAFileKLRM : Unable to allocate buffer for dumping file") ;
-        goto DO_DUMP ; 
+    if (readTot != filesize) {
+        printk("SOAFileKLRM : Unable to dump full file %s, doing only partial hash", payload->pathname) ;
     }
-
-    int readTot = 0 ;
-    int readNow = 0 ;
-    int bufferSize = 131072 ;
-    do {
-        if (readTot + 4096 > bufferSize) {
-            contentbuff = krealloc(contentbuff, bufferSize*2, GFP_KERNEL) ;
-            if (contentbuff == NULL) {
-                printk("Unable to make buffer bigger, dumping read content") ;
-                break ;
-            }
-            bufferSize = bufferSize *2 ;
-        }
-        readNow = vfs_read(toOpen, contentbuff+readTot, 4096, &(toOpen->f_pos)) ;
-        readTot += readNow ;
-    } while(readNow != 0) ;
-
-
-    struct crypto_shash *tfm;
-    //TODO: CHECK WITH USING KMALLOC IN CSE OF CHANGES IN CIPHER/CIPHER INTERNALS
-    char desc[sizeof(struct shash_desc) + 208];
-    unsigned char hash[128];
-    int ret;
     
     tfm = crypto_alloc_shash("sha512", 0, 0);
     if (IS_ERR(tfm)) {
         printk("Failed to allocate SHA-512 hash transform: %ld\n", PTR_ERR(tfm));
-        return -ENOMEM;
+        return ;
     }
 
     ((struct shash_desc*)desc)->tfm = tfm;
@@ -125,21 +111,21 @@ static void do_log_work(unsigned long data) {
     if (ret) {
         printk("Failed to initialize hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return -1 ;
+        return ;
     }
 
     ret = crypto_shash_update((struct shash_desc *)desc, contentbuff, readTot);
     if (ret) {
         printk("Failed to update hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return -1 ;
+        return ;
     }
 
     ret = crypto_shash_final((struct shash_desc *)desc, hash);
     if (ret) {
         printk("Failed to finalize hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return -1 ;
+        return ;
     }
 
     decompress_hash(hash, log + strlen(log)) ;
@@ -148,7 +134,6 @@ static void do_log_work(unsigned long data) {
 
 DO_DUMP:
     internal_logfilefs_write(log) ;
-FREE_EVERYTHING:
     kfree(log) ;
 FREE_INPUT:
     kfree(payload->fullpathname) ;
@@ -189,10 +174,10 @@ void log_append(void) {
     work->euid = get_current_cred()->euid ;
 
     path = &(current->mm->exe_file->f_path) ;
-    path_get(&path) ;
+    path_get(path) ;
 
-    pathname = d_path(&path, fullpathname, 4096) ;
-    if (ISERR(pathname)) {
+    pathname = d_path(path, fullpathname, 4096) ;
+    if (IS_ERR(pathname)) {
         module_put(THIS_MODULE) ;
         kfree(work) ;
         kfree(fullpathname) ;
@@ -200,12 +185,12 @@ void log_append(void) {
         return ;
     }
 
-    path_put(&path) ;
+    path_put(path) ;
 
     work->fullpathname = fullpathname ;
     work->pathname = pathname ;
 
     __INIT_WORK(&(work->work_ref), (void *)do_log_work, (unsigned long)(&work->work_ref)) ;
 
-    schedule_work(work) ;
+    schedule_work(&work->work_ref) ;
 }

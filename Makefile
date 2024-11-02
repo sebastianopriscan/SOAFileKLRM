@@ -9,6 +9,8 @@ klrm-y += password_setup/password_setup.o password_setup/password.o
 klrm-y += state_machine/state_machine.o path_store/path_store.o
 klrm-y += lib/scth/scth.o wrappers/wrappers.o
 klrm-y += probes/probes.o
+klrm-y += lib/logfs/logfilefs_src.o lib/logfs/dir.o lib/logfs/file.o
+klrm-y += logger/logger.o
 
 else
 

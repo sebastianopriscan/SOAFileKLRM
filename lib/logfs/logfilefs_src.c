@@ -32,16 +32,15 @@ struct super_block *singleton_sb = NULL ;
 
 int singlefilefs_fill_super(struct super_block *sb, void *data, int silent) {   
 
-    if (mounted) {
-        return -EBUSY ;
-    }
-
     struct inode *root_inode;
     struct buffer_head *bh;
     struct onefilefs_sb_info *sb_disk;
     struct timespec64 curr_time;
     uint64_t magic;
 
+    if (mounted) {
+        return -EBUSY ;
+    }
 
     //Unique identifier of the filesystem
     sb->s_magic = MAGIC;
@@ -133,9 +132,10 @@ static struct file_system_type onefilefs_type = {
 
 
 int singlefilefs_init(void) {
+    int ret;
+
     spin_lock_init(&sb_lock) ;
     rwlock_init(&log_file_lock) ;
-    int ret;
 
     //register filesystem
     ret = register_filesystem(&onefilefs_type);
