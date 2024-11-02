@@ -14,7 +14,6 @@
 #include "include/state_machine/state_machine.h"
 #include "include/path_store/path_store.h"
 #include "include/scth/scth.h"
-#include "include/probes/probes.h"
 
 #define MODNAME "SOAFileKLRM"
 
@@ -93,7 +92,6 @@ int setup_wrappers(void) {
 	   return -1;
 	}
     
-    do_sys_open_addr = (long (*)(int, const char *, int, umode_t))(get_do_open_addr()) ;
 
     unprotect_memory() ;
 

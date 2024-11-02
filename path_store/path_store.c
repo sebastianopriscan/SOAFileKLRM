@@ -169,7 +169,7 @@ int path_store_rm(klrm_path *path) {
     return 0 ;
 }
 
-int path_store_check(klrm_path *path) {
+PATH_CHECK_RESULT path_store_check(klrm_path *path) {
 
     struct list_head *curr_entry = &(root->children) ;
     struct list_head *tmp ;
@@ -189,7 +189,22 @@ int path_store_check(klrm_path *path) {
 
     read_unlock(&store_lock) ;
 
-    return (retVal == 1 && curr_entry != &(root->children)) || (deepness == j ? 1 : 0 && j != 0) ;
+    if (curr_entry == &(root->children) && retVal == 1) {
+        return MATCH_ROOT ;
+    }
+    if (deepness == j) {
+        if (retVal == 1) {
+            return FULL_MATCH_LEAF ;
+        } else {
+            return FULL_MATCH_DIR ;
+        }
+    } else {
+        if (retVal == 1) {
+            return SUB_MATCH_LEAF ;
+        } else {
+            return SUB_MATCH_DIR ;
+        }
+    }
 }
 
 static void setup_area(void *buffer) {
