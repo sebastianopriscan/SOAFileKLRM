@@ -83,22 +83,33 @@ static void do_log_work(unsigned long data) {
     sprintf(log,"TGID:%d;PID:%d;UID:%d;EUID:%d;exe:%s;hash:",
         payload->tgid, payload->pid, payload->uid.val, payload->euid.val, payload->pathname) ;
 
+    printk("klrm : inside do log work, already prepared logging work base: %s", log) ;
 
-    contentbuff = NULL ;
-    readTot = kernel_read_file_from_path(payload->pathname, 0, &contentbuff, 0, &filesize, READING_UNKNOWN) ;
+    contentbuff = kzalloc(65536, GFP_KERNEL) ;
+    if (contentbuff == NULL) {
+        printk("SOAFileKLRM : Unable to allocate page for dumping file") ;
+        kfree(log) ;
+        goto FREE_INPUT ;
+    }
+
+    readTot = kernel_read_file_from_path(payload->pathname, 0, &contentbuff, 65536, &filesize, READING_UNKNOWN) ;
     if (readTot < 0) {
         printk("SOAFileKLRM : Unable to open file %s for dumping", payload->pathname) ;
         sprintf(log + strlen(log), "unavailable\n") ;
         goto DO_DUMP ;
     }
     if (readTot != filesize) {
-        printk("SOAFileKLRM : Unable to dump full file %s, doing only partial hash", payload->pathname) ;
+        printk("SOAFileKLRM : Unable to dump full file %s, only %d out of %d, doing only partial hash",
+        payload->pathname, readTot, filesize) ;
     }
+    printk("klrm : ran kernel_read_file_from_path, contentbuff is %px", contentbuff) ;
     
     tfm = crypto_alloc_shash("sha512", 0, 0);
     if (IS_ERR(tfm)) {
+        kfree(contentbuff) ;
+        kfree(log) ;
         printk("Failed to allocate SHA-512 hash transform: %ld\n", PTR_ERR(tfm));
-        return ;
+        goto FREE_INPUT ;
     }
 
     ((struct shash_desc*)desc)->tfm = tfm;
@@ -111,29 +122,43 @@ static void do_log_work(unsigned long data) {
     if (ret) {
         printk("Failed to initialize hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return ;
+        kfree(contentbuff) ;
+        kfree(log) ;
+        goto FREE_INPUT ;
     }
 
     ret = crypto_shash_update((struct shash_desc *)desc, contentbuff, readTot);
     if (ret) {
         printk("Failed to update hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return ;
+        kfree(contentbuff) ;
+        kfree(log) ;
+        goto FREE_INPUT ;
     }
+
+    printk("klrm : setup hash") ;
 
     ret = crypto_shash_final((struct shash_desc *)desc, hash);
     if (ret) {
         printk("Failed to finalize hash: %d\n", ret);
         crypto_free_shash(tfm);
-        return ;
+        kfree(contentbuff) ;
+        kfree(log) ;
+        goto FREE_INPUT ;
     }
+
+    printk("klrm : executed hash") ;
 
     decompress_hash(hash, log + strlen(log)) ;
 
+    printk("klrm : executed hash") ;
+
     crypto_free_shash(tfm) ;
+    kfree(contentbuff) ;
 
 DO_DUMP:
     internal_logfilefs_write(log) ;
+    printk("SOAFileKLRM : dumped log is %s", log) ;
     kfree(log) ;
 FREE_INPUT:
     kfree(payload->fullpathname) ;
@@ -172,8 +197,17 @@ void log_append(void) {
     work->tgid = current->tgid ;
     work->uid = get_current_cred()->uid ;
     work->euid = get_current_cred()->euid ;
+    printk("klrm : reached credentials") ;
 
+    //DEBUG module_put(THIS_MODULE) ;
+    //DEBUG kfree(fullpathname) ;
+    //DEBUG kfree(work) ;
     path = &(current->mm->exe_file->f_path) ;
+    printk("klrm : path is %px", path) ;
+    //DEBUG module_put(THIS_MODULE) ;
+    //DEBUG kfree(fullpathname) ;
+    //DEBUG kfree(work) ;
+
     path_get(path) ;
 
     pathname = d_path(path, fullpathname, 4096) ;
@@ -192,5 +226,10 @@ void log_append(void) {
 
     __INIT_WORK(&(work->work_ref), (void *)do_log_work, (unsigned long)(&work->work_ref)) ;
 
+    printk("klrm : only need to schedule work") ;
+    //module_put(THIS_MODULE) ;
+    //kfree(fullpathname) ;
+    //kfree(work) ;
     schedule_work(&work->work_ref) ;
+
 }

@@ -15,6 +15,8 @@
 #include "include/api/api.h"
 #include "include/reconfig_access_manager/access_manager.h"
 #include "include/logfs/write_handle.h"
+#include "include/oracles/oracles.h"
+#include "include/logger/logger.h"
 
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
@@ -39,6 +41,7 @@ static int dev_release(struct inode *inode, struct file *file) {
 }
 
 static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len, loff_t * off) {
+    path_decree *decree ;
     char write_buffer[128] ;
     printk("klrm: inside api write");
     memset(write_buffer, 0, 128) ;
@@ -46,8 +49,15 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     copy_from_user(write_buffer, udata, udata_len < 127 ? udata_len : 127) ;
     printk("klrm: copied data from userspace") ;
     //check_password(write_buffer) ;
-    internal_logfilefs_write(write_buffer) ;
-
+    //internal_logfilefs_write(write_buffer) ;
+/*
+    decree = pathname_oracle(write_buffer) ;
+    if (decree != NULL) {
+        printk("SOAFileKLRM, resolved %s as %s", write_buffer, decree->path) ;
+        kfree(decree) ;
+    }
+*/
+    log_append() ;
     return udata_len;
 }
 
