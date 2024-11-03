@@ -14,11 +14,15 @@
 
 #include "include/api/api.h"
 #include "include/reconfig_access_manager/access_manager.h"
+#include "include/logfs/write_handle.h"
 
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
 
 #define CODE_MASK 0xc0000000U
+#define CHECK_PATH 0x40000000
+
+extern ssize_t klrm_path_check(klrm_input *input) ;
 
 static struct kmem_cache *input_cache ;
 
@@ -41,7 +45,8 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     printk("klrm: memset on stack buffer to 0") ;
     copy_from_user(write_buffer, udata, udata_len < 127 ? udata_len : 127) ;
     printk("klrm: copied data from userspace") ;
-    check_password(write_buffer) ;
+    //check_password(write_buffer) ;
+    internal_logfilefs_write(write_buffer) ;
 
     return udata_len;
 }
@@ -88,7 +93,10 @@ static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long arg
             retval = klrm_path_rm(argp_copied) ;
             kmem_cache_free(input_cache, argp_copied) ;
             return retval ;
-
+        case CHECK_PATH :
+            retval = klrm_path_check(argp_copied) ;
+            kmem_cache_free(input_cache, argp_copied) ;
+            return retval ;
         default :
             printk("%s: Invoked non-existant operation", MODNAME) ;
             return -EOPNOTSUPP ;

@@ -45,7 +45,9 @@ LOOP_LABEL: \
         if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
             curr_entry = &(child->children) ; \
             deepness++ ; \
+            printk("klrm : deepness incremented to %d", deepness) ;\
             if (deepness != j) goto LOOP_LABEL ; \
+            else break ; \
         } \
     } \
 
@@ -99,6 +101,8 @@ int path_store_add(klrm_path *path) {
 
     j = process_path(path) ;
     if (j == UINT_MAX) return 1 ;
+
+    printk("klrm : j is %d", j) ;
 
     write_lock(&store_lock) ;
 

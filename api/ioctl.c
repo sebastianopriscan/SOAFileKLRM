@@ -54,3 +54,38 @@ ssize_t klrm_path_rm(klrm_input *input) {
     state_machine_down() ;
     return ret ;
 }
+
+ssize_t klrm_path_check(klrm_input *input) {
+
+    ssize_t ret ;
+
+    state_machine_up(REC_ON) ;
+
+    if (check_password(input->password) != 0) {
+        return -EACCES ;
+    }
+
+    ret = path_store_check(&input->path) ;
+
+    state_machine_down() ;
+
+    switch(ret) {
+        case FULL_MATCH_LEAF:
+            printk("SOAFileKLRM : FULL MATCH LEAF") ;
+            break;
+        case FULL_MATCH_DIR:
+            printk("SOAFileKLRM : FULL MATCH DIR") ;
+            break;
+        case SUB_MATCH_LEAF:
+            printk("SOAFileKLRM : SUB MATCH LEAF") ;
+            break;
+        case SUB_MATCH_DIR:
+            printk("SOAFileKLRM : SUB MATCH DIR") ;
+            break;
+        default :
+            printk("SOAFileKLRM : MATCH ROOT") ;
+            break;
+    }
+
+    return ret ;
+}
