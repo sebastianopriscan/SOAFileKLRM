@@ -44,4 +44,11 @@ int main(int argc, char **argv) {
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
+
+    if (strcmp(argv[1], "check") == 0) {
+        fprintf(stderr, "Inside check path\n") ;
+        int retval = ioctl(fd, 0x40000000 | (unsigned int) sizeof(klrm_input), input) ;
+        fprintf(stderr, "ioctl returned %d\n", retval) ;
+        return 0 ;
+    }
 }

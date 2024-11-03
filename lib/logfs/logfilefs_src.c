@@ -33,12 +33,14 @@ struct super_block *singleton_sb = NULL ;
 int singlefilefs_fill_super(struct super_block *sb, void *data, int silent) {   
 
     struct inode *root_inode;
-    struct buffer_head *bh;
-    struct onefilefs_sb_info *sb_disk;
+    struct buffer_head *bh, *inode_bh;
+    struct onefilefs_sb_info *sb_disk ;
+    struct onefilefs_inode *inode_disk ;
     struct timespec64 curr_time;
     uint64_t magic;
 
     if (mounted) {
+        printk("SOAFileKLRM : FS already mounted") ;
         return -EBUSY ;
     }
 
@@ -61,6 +63,19 @@ int singlefilefs_fill_super(struct super_block *sb, void *data, int silent) {
     sb->s_fs_info = NULL; //FS specific data (the magic number) already reported into the generic superblock
     sb->s_op = &singlefilefs_super_ops;//set our own operations
 
+    printk("SOAFileKLRM : Setup initial superblock") ;
+
+    inode_bh = sb_bread(sb, 1) ;
+    if (!inode_bh){
+        return -EIO;
+    }
+    inode_disk = (struct onefilefs_inode *)inode_bh->b_data ;
+    file_size = inode_disk->file_size ;
+    circular_buffer_start = inode_disk->circular_buffer_start ;
+    circular_buffer_end = inode_disk->circular_buffer_end ;
+    brelse(inode_bh) ;
+
+    printk("SOAFileKLRM : Setup inode global data") ;
 
     root_inode = iget_locked(sb, SINGLEFILEFS_ROOT_INODE_NUMBER);//get a root inode from cache
     if (!root_inode){

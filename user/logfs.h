@@ -55,24 +55,4 @@ struct onefilefs_sb_info {
 	char padding[ (4 * 1024) - (5 * sizeof(uint64_t))];
 };
 
-// file.c
-extern const struct inode_operations onefilefs_inode_ops;
-extern const struct file_operations onefilefs_file_operations; 
-extern rwlock_t log_file_lock;
-extern uint64_t file_size ;
-extern long long circular_buffer_start;
-extern long long circular_buffer_end;
-
-// dir.c
-extern const struct file_operations onefilefs_dir_operations;
-
-// logfilefs_src.c
-extern struct super_block *singleton_sb ;
-extern volatile unsigned int mounted ;
-extern spinlock_t sb_lock ;
-
-int singlefilefs_init(void) ;
-
-void singlefilefs_exit(void) ;
-
 #endif

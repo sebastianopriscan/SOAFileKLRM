@@ -16,6 +16,7 @@
 #include "include/path_store/path_store.h"
 #include "include/wrappers/wrappers.h"
 #include "include/oracles/oracles.h"
+#include "include/logfs/logfs.h"
 
 MODULE_AUTHOR("Sebastian Roberto Opriscan <sebastianroberto.opriscan@gmail.com>");
 MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to prevent write access \
@@ -26,7 +27,7 @@ MODULE_DESCRIPTION("This module implements a Kernel Level Reference Monitor to p
 static int klrm_init(void) {
 	setup_state_machine() ;
 	setup_password() ;
-	setup_wrappers() ;
+	//setup_wrappers() ;
 	if(setup_path_store() != 0) {
 		return 1 ;
 	}
@@ -34,14 +35,16 @@ static int klrm_init(void) {
 		cleanup_path_store() ;
 		return 1 ;
 	}
+	singlefilefs_init() ;
 
 	return 0 ;
 }
 
 static void  klrm_exit(void) {
-	cleanup_wrappers() ;
+	//cleanup_wrappers() ;
 	cleanup_path_store() ;
 	cleanup_api() ;
+	singlefilefs_exit() ;
 }
 
 module_init(klrm_init)
