@@ -65,5 +65,5 @@ static int onefilefs_iterate(struct file *file, struct dir_context* ctx) {
 //add the iterate function in the dir operations
 const struct file_operations onefilefs_dir_operations = {
     .owner = THIS_MODULE,
-    .iterate = onefilefs_iterate,
+    .iterate_shared = onefilefs_iterate,
 };

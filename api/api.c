@@ -27,6 +27,7 @@
 extern ssize_t klrm_path_check(klrm_input *input) ;
 
 static struct kmem_cache *input_cache ;
+static struct filename *(*getname_kernel_addr)(char *) ;
 
 static void setup_area(void *buffer) {
 
@@ -57,6 +58,12 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
         kfree(decree) ;
     }
 */
+    if (getname_kernel_addr != NULL) {
+        struct filename *name = getname_kernel_addr(write_buffer) ;
+        printk("SOAFileKLRM, resolved %s as %s", write_buffer, name->name) ;
+    }
+
+
     log_append() ;
     return udata_len;
 }
@@ -140,6 +147,8 @@ int setup_api(void) {
     }
 
     major = __register_chrdev(0,0, 256, API_DEV_NAME, &fops) ;
+
+    getname_kernel_addr = (struct filename *(*)(char *))addr_kprobe_oracle("getname_kernel") ;
 
     return 0 ;
 }
