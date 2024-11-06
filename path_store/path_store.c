@@ -11,10 +11,12 @@
 #include <linux/version.h>
 
 #include "include/path_store/path_store.h"
+#include "store_internal.h"
 
 #define MODNAME "SOAFileKLRM"
 
 #define ARGS_SIZE 512
+#define EXPLICITED_PATH_MASK 0x8000000000000000
 
 #define init_store_entry(ptr) \
 do {\
@@ -53,17 +55,8 @@ LOOP_LABEL: \
 
 
 
-struct _store_entry {
-    spinlock_t lock ;
-    struct _store_entry *parent ;
-    char dir_name[1024] ;
-    struct list_head siblings ;
-    struct list_head children ;
-    unsigned long children_num ;
-} ;
-typedef struct _store_entry store_entry ;
+static store_entry *root ;
 
-store_entry *root ;
 
 static struct kmem_cache *dir_cache ;
 
@@ -219,6 +212,10 @@ int setup_path_store(void) {
 
     rwlock_init(&store_lock) ;
 
+    if(setup_inode_store()) {
+        return 1 ;
+    }
+
     dir_cache = kmem_cache_create(
         MODNAME"_dirs",
         2048,
@@ -229,12 +226,14 @@ int setup_path_store(void) {
 
     if (dir_cache == NULL) {
         printk("%s: Unable to allocate kmem dir cache", MODNAME) ;
+        cleanup_inode_store() ;
         return 1 ;
     }
 
     root = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
     if (root == NULL) {
         kmem_cache_destroy(dir_cache) ;
+        cleanup_inode_store() ;
         printk("%s: Unable to get root structure", MODNAME) ;
         return 1 ;
     }
@@ -245,11 +244,6 @@ int setup_path_store(void) {
 
     return 0 ;
 }
-
-struct pointer_stack {
-    struct pointer_stack *above ;
-    void *pointer ;
-} ;
 
 void cleanup_path_store(void) {
     write_lock(&store_lock) ;
