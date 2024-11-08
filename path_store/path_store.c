@@ -54,6 +54,7 @@ LOOP_LABEL: \
     } \
 
 
+static struct list_head allocations = LIST_HEAD_INIT(allocations) ;
 
 static store_entry *root ;
 
@@ -120,6 +121,7 @@ int path_store_add(klrm_path *path) {
             strlen(path->pathName + argIdxs[deepness])) ;
 
         list_add(&newChild->siblings, curr_entry) ;
+        list_add(&newChild->allocations, &allocations) ;
         actualCurrent = list_entry(curr_entry, store_entry, children) ;
         newChild->parent = actualCurrent ;
         __sync_fetch_and_add(&(actualCurrent->children_num), 1UL) ;
@@ -240,12 +242,32 @@ int setup_path_store(void) {
 
     init_store_entry(root) ;
     root->dir_name[0] = '/' ;
+    list_add(&root->allocations, &allocations) ;
 
 
     return 0 ;
 }
 
 void cleanup_path_store(void) {
+
+    struct list_head *tmp, *prev = NULL ;
+    store_entry *toDelete ;
+
     write_lock(&store_lock) ;
+    cleanup_inode_store() ;
+
+    list_for_each(tmp, &allocations) {
+        if (prev != NULL) {
+            toDelete = container_of(prev, store_entry, allocations) ;
+            list_del(prev) ;
+            kmem_cache_free(dir_cache, toDelete) ;
+        }
+    }
+    toDelete = container_of(prev, store_entry, allocations) ;
+    list_del(prev) ;
+    kmem_cache_free(dir_cache, toDelete) ;
+
+    kmem_cache_destroy(dir_cache) ;
+
     write_unlock(&store_lock) ;
 }

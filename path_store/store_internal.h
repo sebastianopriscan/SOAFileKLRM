@@ -11,6 +11,7 @@ struct _store_entry {
     char dir_name[1024] ;
     struct list_head siblings ;
     struct list_head children ;
+    struct list_head allocations ;
     struct _inode_ht *inode ;
     unsigned long children_num ;
 } ;
@@ -33,5 +34,11 @@ extern rwlock_t store_lock ;
 int setup_inode_store(void) ;
 
 void cleanup_inode_store(void) ;
+
+int insert_inode_ht(dev_t table, unsigned long inode, store_entry *se) ;
+
+void inode_deallocate(inode_ht *node) ;
+
+int check_inode(dev_t table, unsigned long inode) ;
 
 #endif
