@@ -5,6 +5,8 @@ unsigned long addr_kprobe_oracle(char *) ;
 
 typedef struct __path_decree {
     char *path ;
+    dev_t device ;
+    unsigned long inode ;
 } path_decree ;
 
 path_decree *pathname_oracle(char *) ;

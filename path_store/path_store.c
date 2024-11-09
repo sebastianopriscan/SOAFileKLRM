@@ -251,7 +251,7 @@ int setup_path_store(void) {
 void cleanup_path_store(void) {
 
     struct list_head *tmp, *prev = NULL ;
-    store_entry *toDelete ;
+    store_entry *toDelete = NULL ;
 
     write_lock(&store_lock) ;
     cleanup_inode_store() ;
@@ -263,9 +263,11 @@ void cleanup_path_store(void) {
             kmem_cache_free(dir_cache, toDelete) ;
         }
     }
-    toDelete = container_of(prev, store_entry, allocations) ;
-    list_del(prev) ;
-    kmem_cache_free(dir_cache, toDelete) ;
+    if (prev != NULL) {
+        toDelete = container_of(prev, store_entry, allocations) ;
+        list_del(prev) ;
+        kmem_cache_free(dir_cache, toDelete) ;
+    }
 
     kmem_cache_destroy(dir_cache) ;
 

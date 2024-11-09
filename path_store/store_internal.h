@@ -12,7 +12,7 @@ struct _store_entry {
     struct list_head siblings ;
     struct list_head children ;
     struct list_head allocations ;
-    struct _inode_ht *inode ;
+    struct list_head managed_inodes ;
     unsigned long children_num ;
 } ;
 typedef struct _store_entry store_entry ;
@@ -20,7 +20,7 @@ typedef struct _store_entry store_entry ;
 typedef struct _inode_ht {
     uint num ;
     struct list_head peers ;
-    store_entry *related_entry ;
+    struct list_head related_store ;
 } inode_ht ;
 
 typedef struct _store_fs {

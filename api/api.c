@@ -51,18 +51,20 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     printk("klrm: copied data from userspace") ;
     //check_password(write_buffer) ;
     //internal_logfilefs_write(write_buffer) ;
-/*
+
     decree = pathname_oracle(write_buffer) ;
     if (decree != NULL) {
-        printk("SOAFileKLRM, resolved %s as %s", write_buffer, decree->path) ;
+        printk("SOAFileKLRM, resolved %s as %s, with major %d, minor %d and number %d",
+            write_buffer, decree->path, MAJOR(decree->device), MINOR(decree->device), decree->inode) ;
         kfree(decree) ;
     }
-*/
+
+/*
     if (getname_kernel_addr != NULL) {
         struct filename *name = getname_kernel_addr(write_buffer) ;
         printk("SOAFileKLRM, resolved %s as %s", write_buffer, name->name) ;
     }
-
+*/
 
     log_append() ;
     return udata_len;

@@ -10,6 +10,7 @@
 #include <linux/syscalls.h>
 #include <linux/version.h>
 #include <linux/fdtable.h>
+#include <linux/cdev.h>
 
 #include "include/oracles/oracles.h"
 
@@ -23,14 +24,20 @@ path_decree *pathname_oracle(char *path) {
         return NULL ;
     }
 
-    file = filp_open(path, O_RDWR, 0) ;
+    file = filp_open(path, O_RDWR | O_PATH, 0) ;
     if (IS_ERR(file)) {
         printk("SOAFileKLRM : Unable to retrieve file") ;
         kfree(retval) ;
         return NULL ;
     }
     path_get(&file->f_path) ;
+    inode_lock(file->f_inode) ;
+    down_read(&file->f_inode->i_sb->s_umount) ;
+    retval->device = file->f_inode->i_sb->s_dev ;
+    retval->inode = file->f_inode->i_ino ;
     retval->path = d_path(&file->f_path, (char *)retval + sizeof(path_decree), 8192 - sizeof(path_decree)) ;
+    up_read(&file->f_inode->i_sb->s_umount) ;
+    inode_unlock(file->f_inode) ;
     path_put(&file->f_path) ;
     filp_close(file, NULL) ;
 

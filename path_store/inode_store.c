@@ -18,7 +18,7 @@
 static struct kmem_cache *fs_cache ;
 static struct kmem_cache *inodes_cache ;
 
-struct list_head fs_stores ;
+struct list_head fs_stores = LIST_HEAD_INIT(fs_stores) ;
 
 
 static inline int inode_allocate(store_fs * store, unsigned long inode, store_entry *se) {
@@ -29,8 +29,6 @@ static inline int inode_allocate(store_fs * store, unsigned long inode, store_en
         return 0 ;
     }
     node->num = inode ;
-    node->related_entry = se ;
-    se->inode = node ;
     list_add(&node->peers, &(store->inodes[inode % HASH_TABLE_SIZE])) ;
     write_unlock(&store_lock) ;
     return 1 ;
@@ -147,9 +145,11 @@ void cleanup_inode_store(void) {
             kmem_cache_free(fs_cache, toDeleteStore) ;
         }
     }
-    toDeleteStore = container_of(prevStore, store_fs, stores) ;
-    list_del(prevStore) ;
-    kmem_cache_free(fs_cache, toDeleteStore) ;
+    if (prevStore != NULL) {
+        toDeleteStore = container_of(prevStore, store_fs, stores) ;
+        list_del(prevStore) ;
+        kmem_cache_free(fs_cache, toDeleteStore) ;
+    }
 
     kmem_cache_destroy(fs_cache) ;
     kmem_cache_destroy(inodes_cache) ;
