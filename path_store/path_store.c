@@ -262,6 +262,7 @@ void cleanup_path_store(void) {
             list_del(prev) ;
             kmem_cache_free(dir_cache, toDelete) ;
         }
+        prev = tmp ;
     }
     if (prev != NULL) {
         toDelete = container_of(prev, store_entry, allocations) ;

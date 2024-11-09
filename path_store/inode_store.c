@@ -144,6 +144,7 @@ void cleanup_inode_store(void) {
             list_del(prevStore) ;
             kmem_cache_free(fs_cache, toDeleteStore) ;
         }
+        prevStore = tmp ;
     }
     if (prevStore != NULL) {
         toDeleteStore = container_of(prevStore, store_fs, stores) ;
