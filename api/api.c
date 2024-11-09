@@ -56,29 +56,51 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     struct list_head *tmp ;
 
     struct dentry *dir = file->f_path.dentry ;
-
+    
     path_get(&file->f_path) ;
     printk("klrm: Got path") ;
     inode_lock(file->f_inode) ;
     printk("klrm: Got inode") ;
     down_read(&file->f_inode->i_sb->s_umount) ;
     printk("klrm: Got superblock") ;
+    
     list_for_each(tmp, &dir->d_subdirs) {
         struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+        struct inode *curr_inode ;
+
+        printk("SOAFileKLRM : curr dentry is %px", curr) ;
 
         dget(curr) ;
-        inode_lock(curr->d_inode) ;
 
-        printk("SOAFileKLRM : iterating over %s", curr->d_name.name) ;
+        printk("SOAFileKLRM : dgot curr dentry") ;
+        printk("SOAFileKLRM : curr dname is: %px", curr->d_name) ;
+        printk("SOAFileKLRM : curr dname name is: %px", curr->d_name.name) ;
+
+        if(strcmp(".", curr->d_name.name) == 0 || strcmp("..", curr->d_name.name) == 0) {
+            printk("SOAFileKLRM : found one of . or .., skipping") ;
+            dput(curr) ;
+            continue;
+        }
+
+        curr_inode = d_inode(curr) ;
+        if (curr_inode != NULL) {
+            printk("SOAFileKLRM : curr_inode is %px, curr.d_inode is %px", curr_inode, curr->d_inode) ;
+        } else continue ;
+        //printk("SOAFileKLRM : locking inode %px", curr->d_inode) ; 
+
+        //inode_lock(curr->d_inode) ;
+
+        printk("SOAFileKLRM : iterating over %s, aka %s", curr->d_name.name, curr->d_iname) ;
 
         dput(curr) ;
-        inode_unlock(curr->d_inode) ;
+        //inode_unlock(curr->d_inode) ;
     }
-
+    
     up_read(&file->f_inode->i_sb->s_umount) ;
     inode_unlock(file->f_inode) ;
     path_put(&file->f_path) ;
     filp_close(file, NULL) ;
+    
 
     decree = pathname_oracle(write_buffer) ;
     if (decree != NULL) {

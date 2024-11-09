@@ -31,9 +31,17 @@ void store_iterate(struct file *file, store_entry *se) {
 REPLAY :
     list_for_each(tmp, &dir->d_subdirs) {
         struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+        struct inode *curr_ino ;
         internal_stack *stkntry ;
 
         dget(curr) ;
+
+        curr_ino = d_inode(curr) ;
+        if (curr_ino == NULL) {
+            d_put(curr) ;
+            continue ;
+        }
+
         inode_lock(curr->d_inode) ;
 
         insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino, se) ;
