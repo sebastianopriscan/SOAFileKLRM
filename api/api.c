@@ -52,9 +52,37 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     //check_password(write_buffer) ;
     //internal_logfilefs_write(write_buffer) ;
 
+    struct file *file = filp_open(write_buffer, O_PATH, 0) ;
+    struct list_head *tmp ;
+
+    struct dentry *dir = file->f_path.dentry ;
+
+    path_get(&file->f_path) ;
+    printk("klrm: Got path") ;
+    inode_lock(file->f_inode) ;
+    printk("klrm: Got inode") ;
+    down_read(&file->f_inode->i_sb->s_umount) ;
+    printk("klrm: Got superblock") ;
+    list_for_each(tmp, &dir->d_subdirs) {
+        struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+
+        dget(curr) ;
+        inode_lock(curr->d_inode) ;
+
+        printk("SOAFileKLRM : iterating over %s", curr->d_name.name) ;
+
+        dput(curr) ;
+        inode_unlock(curr->d_inode) ;
+    }
+
+    up_read(&file->f_inode->i_sb->s_umount) ;
+    inode_unlock(file->f_inode) ;
+    path_put(&file->f_path) ;
+    filp_close(file, NULL) ;
+
     decree = pathname_oracle(write_buffer) ;
     if (decree != NULL) {
-        printk("SOAFileKLRM, resolved %s as %s, with major %d, minor %d and number %d",
+        printk("SOAFileKLRM : resolved %s as %s, with major %d, minor %d and number %d",
             write_buffer, decree->path, MAJOR(decree->device), MINOR(decree->device), decree->inode) ;
         kfree(decree) ;
     }
