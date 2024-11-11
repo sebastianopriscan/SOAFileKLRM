@@ -12,15 +12,14 @@ struct _store_entry {
     struct list_head siblings ;
     struct list_head children ;
     struct list_head allocations ;
-    struct list_head managed_inodes ;
     unsigned long children_num ;
 } ;
 typedef struct _store_entry store_entry ;
 
 typedef struct _inode_ht {
     uint num ;
+    unsigned long refCount ;
     struct list_head peers ;
-    struct list_head related_store ;
 } inode_ht ;
 
 typedef struct _store_fs {
@@ -32,13 +31,14 @@ typedef struct _store_fs {
 extern rwlock_t store_lock ;
 
 int setup_inode_store(void) ;
-
 void cleanup_inode_store(void) ;
 
-int insert_inode_ht(dev_t table, unsigned long inode, store_entry *se) ;
+int insert_inode_ht(dev_t, unsigned long) ;
+int rm_inode_ht(dev_t, unsigned long) ;
 
-void inode_deallocate(inode_ht *node) ;
+int check_inode(dev_t, unsigned long) ;
 
-int check_inode(dev_t table, unsigned long inode) ;
+void store_iterate_add(struct file *) ;
+void store_iterate_rm(struct file *) ;
 
 #endif

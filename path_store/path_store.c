@@ -11,6 +11,7 @@
 #include <linux/version.h>
 
 #include "include/path_store/path_store.h"
+#include "include/oracles/oracles.h"
 #include "store_internal.h"
 
 #define MODNAME "SOAFileKLRM"
@@ -47,7 +48,7 @@ LOOP_LABEL: \
         if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
             curr_entry = &(child->children) ; \
             deepness++ ; \
-            printk("klrm : deepness incremented to %d", deepness) ;\
+            printk("klrm : deepness incremented to %d", deepness) ; \
             if (deepness != j) goto LOOP_LABEL ; \
             else break ; \
         } \
@@ -65,13 +66,15 @@ unsigned int argIdxs[ARGS_SIZE] ;
 
 rwlock_t store_lock ;
 
-static inline unsigned int process_path(klrm_path *path) {
+static inline unsigned int process_path(char *path) {
     unsigned int i, j ;
-    int length = strlen(path->pathName) ;
+    int length = strlen(path) ;
+
+    if (path[0] != '/') return UINT_MAX ;
 
     for (i = 0, j = 0; i < (unsigned int) length; i++) {
-        if (path->pathName[i] == '/') {
-            path->pathName[i] = '\0' ;
+        if (path[i] == '/') {
+            path[i] = '\0' ;
             if (j == ARGS_SIZE) {
                 printk("%s: Error, path tokens length exceeded", MODNAME) ;
                 return UINT_MAX ;
@@ -81,6 +84,10 @@ static inline unsigned int process_path(klrm_path *path) {
             }
         }
     }
+    for (i = 0; i < j; i++) {
+        if (strcmp(".", path + argIdxs[i]) == 0 || strcmp("..", path + argIdxs[i]) == 0)
+            return UINT_MAX ;
+    }
 
     return j ;
 }
@@ -89,11 +96,19 @@ int path_store_add(klrm_path *path) {
 
     struct list_head *curr_entry = &(root->children) ;
     struct list_head *tmp ;
+    path_decree *resolved ;
     store_entry *child ;
+    store_entry *actualCurrent ;
+    char *examinated = path->pathName ;
     unsigned int j ;
     unsigned int deepness = 0 ;
 
-    j = process_path(path) ;
+    resolved = pathname_oracle(path->pathName) ;
+    if (resolved != NULL) {
+        examinated = resolved->path ;
+    }
+
+    j = process_path(examinated) ;
     if (j == UINT_MAX) return 1 ;
 
     printk("klrm : j is %d", j) ;
@@ -104,14 +119,7 @@ int path_store_add(klrm_path *path) {
 
     if (deepness != j ) {
         store_entry *newChild ;
-        store_entry *actualCurrent ;
-/*
-        if (list_entry(curr_entry, store_entry, children)->isLeaf) {
-            printk("%s: Warning, element of path passed as dir but actually file", MODNAME) ;
-            write_unlock(&store_lock) ;
-            return 1 ;
-        }
-*/
+
         if (strlen(path->pathName + argIdxs[deepness]) == 0) {
             return 1 ;
         }
@@ -124,11 +132,14 @@ int path_store_add(klrm_path *path) {
         list_add(&newChild->allocations, &allocations) ;
         actualCurrent = list_entry(curr_entry, store_entry, children) ;
         newChild->parent = actualCurrent ;
-        __sync_fetch_and_add(&(actualCurrent->children_num), 1UL) ;
+        actualCurrent->children_num++ ;
         goto LOOP_ADD ;
     }
 
-    //list_entry(curr_entry, store_entry, children)->isLeaf = 1 ;
+    actualCurrent = container_of(curr_entry, store_entry, children) ;
+    actualCurrent->children_num | EXPLICITED_PATH_MASK ;
+
+    store_iterate_add(resolved->file) ;
     
     write_unlock(&store_lock) ;
 
@@ -142,8 +153,15 @@ int path_store_rm(klrm_path *path) {
     store_entry *child ;
     unsigned int j ;
     unsigned int deepness = 0 ;
+    path_decree *resolved ;
+    char *examinated = path->pathName ;
 
-    j = process_path(path) ;
+    resolved = pathname_oracle(path->pathName) ;
+    if (resolved != NULL) {
+        examinated = resolved->path ;
+    }
+
+    j = process_path(path->pathName) ;
     if (j == UINT_MAX) return 1 ;
     
     write_lock(&store_lock) ;
@@ -152,10 +170,11 @@ int path_store_rm(klrm_path *path) {
 
     if (deepness == j) {
         store_entry *actualCurrent = list_entry(curr_entry, store_entry, children) ;
-        if (actualCurrent->children_num != 0) {
+        if (actualCurrent->children_num & EXPLICITED_PATH_MASK) {
             write_unlock(&store_lock) ;
             return 1 ;
         }
+        store_iterate_rm(resolved->file) ;
         actualCurrent->parent->children_num-- ;
         list_del(&(actualCurrent->siblings)) ;
         kmem_cache_free(dir_cache, actualCurrent) ;

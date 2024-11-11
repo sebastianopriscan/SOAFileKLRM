@@ -21,7 +21,22 @@ static struct kmem_cache *inodes_cache ;
 struct list_head fs_stores = LIST_HEAD_INIT(fs_stores) ;
 
 
-static inline int inode_allocate(store_fs * store, unsigned long inode, store_entry *se) {
+static inline int inode_allocate(store_fs * store, unsigned long inode) {
+
+    struct list_head *tmp ;
+    inode_ht *node ;
+
+    list_for_each(tmp, &store->inodes[inode % HASH_TABLE_SIZE]) {
+        node = container_of(tmp, inode_ht, peers) ;
+        if (node->num == inode) {
+
+            node->refCount++ ;
+
+            write_unlock(&store_lock) ;
+            return 1 ;
+        }
+    }
+
     inode_ht *node = kmem_cache_alloc(inodes_cache, GFP_KERNEL) ;
     if (node == NULL) {
         printk("%s : Error allocating new node, aborting add", MODNAME) ;
@@ -29,12 +44,13 @@ static inline int inode_allocate(store_fs * store, unsigned long inode, store_en
         return 0 ;
     }
     node->num = inode ;
+    node->refCount++ ;
     list_add(&node->peers, &(store->inodes[inode % HASH_TABLE_SIZE])) ;
     write_unlock(&store_lock) ;
     return 1 ;
 }
 
-int insert_inode_ht(dev_t table, unsigned long inode, store_entry *se) {
+int insert_inode_ht(dev_t table, unsigned long inode) {
 
     struct list_head *tmp ;
     store_fs *store ;
@@ -44,7 +60,7 @@ int insert_inode_ht(dev_t table, unsigned long inode, store_entry *se) {
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
-            return inode_allocate(store, inode, se) ;
+            return inode_allocate(store, inode) ;
         }
     }
 
@@ -62,12 +78,40 @@ int insert_inode_ht(dev_t table, unsigned long inode, store_entry *se) {
     }
 
     list_add(&store->stores, &fs_stores) ;
-    return inode_allocate(store, inode, se) ;    
+    return inode_allocate(store, inode) ;    
 }
 
-void inode_deallocate(inode_ht *node) {
+static inline void inode_deallocate(inode_ht *node) {
+    if (node->refCount != 0) return ;
     list_del(&node->peers) ;
     kmem_cache_free(inodes_cache, node) ;
+}
+
+void rm_inode_ht(dev_t table, unsigned long inode) {
+
+    struct list_head *tmp ;
+    store_fs *store ;
+    inode_ht *node ;
+    int i ;
+
+    write_lock(&store_lock) ;
+    list_for_each(tmp, &fs_stores) {
+        store = container_of(tmp, store_fs, stores) ;
+
+        if (store->numbers == table) {
+            list_for_each(tmp, &store->inodes[inode % HASH_TABLE_SIZE]) {
+                node = container_of(tmp, inode_ht, peers) ;
+                if (node->num == inode) {
+
+                    node->refCount-- ;
+                    inode_deallocate(inode) ;
+
+                    write_unlock(&store_lock) ;
+                    return ;
+                }
+            }
+        }
+    }
 }
 
 int check_inode(dev_t table, unsigned long inode) {

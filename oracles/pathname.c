@@ -39,10 +39,12 @@ path_decree *pathname_oracle(char *path) {
     up_read(&file->f_inode->i_sb->s_umount) ;
     inode_unlock(file->f_inode) ;
     path_put(&file->f_path) ;
-    filp_close(file, NULL) ;
+    
+    retval->file = file ;
 
     if (IS_ERR(retval->path)) {
         printk("SOAFileKLRM : Unable to translate path") ;
+        filp_close(file, NULL) ;
         kfree(retval) ;
         return NULL;
     }
