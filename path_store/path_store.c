@@ -55,6 +55,13 @@ LOOP_LABEL: \
     } \
 
 
+#define clean_oracle_decree(decree, isDecree) do {\
+    if (isDecree) { \
+        filp_close(decree->file, NULL) ; \
+        kfree(decree) ;\
+    } \
+} while (0) ; \
+
 static struct list_head allocations = LIST_HEAD_INIT(allocations) ;
 
 static store_entry *root ;
@@ -102,14 +109,19 @@ int path_store_add(klrm_path *path) {
     char *examinated = path->pathName ;
     unsigned int j ;
     unsigned int deepness = 0 ;
+    unsigned int isResolved = 0 ;
 
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {
         examinated = resolved->path ;
+        isResolved = 1 ;
     }
 
     j = process_path(examinated) ;
-    if (j == UINT_MAX) return 1 ;
+    if (j == UINT_MAX) {
+        clean_oracle_decree(resolved, isResolved) ;
+        return 1 ;
+    }
 
     printk("klrm : j is %d", j) ;
 
@@ -121,6 +133,7 @@ int path_store_add(klrm_path *path) {
         store_entry *newChild ;
 
         if (strlen(path->pathName + argIdxs[deepness]) == 0) {
+            clean_oracle_decree(resolved, isResolved) ;
             return 1 ;
         }
         newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
@@ -143,6 +156,7 @@ int path_store_add(klrm_path *path) {
     
     write_unlock(&store_lock) ;
 
+    clean_oracle_decree(resolved, isResolved) ;
     return 0 ;
 }
 
@@ -155,35 +169,59 @@ int path_store_rm(klrm_path *path) {
     unsigned int deepness = 0 ;
     path_decree *resolved ;
     char *examinated = path->pathName ;
+    int isResolved = 0 ;
 
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {
         examinated = resolved->path ;
+        isResolved = 1 ;
     }
 
     j = process_path(path->pathName) ;
-    if (j == UINT_MAX) return 1 ;
+    if (j == UINT_MAX) {
+        clean_oracle_decree(resolved, isResolved) ;
+        return 1 ;
+    }
     
     write_lock(&store_lock) ;
 
     PATH_SEARCH_LOOP(LOOP_RM)
 
     if (deepness == j) {
+        store_entry *parent ;
         store_entry *actualCurrent = list_entry(curr_entry, store_entry, children) ;
-        if (actualCurrent->children_num & EXPLICITED_PATH_MASK) {
+        if (!(actualCurrent->children_num & EXPLICITED_PATH_MASK)) {
             write_unlock(&store_lock) ;
+            clean_oracle_decree(resolved, isResolved) ;
             return 1 ;
         }
         store_iterate_rm(resolved->file) ;
-        actualCurrent->parent->children_num-- ;
-        list_del(&(actualCurrent->siblings)) ;
-        kmem_cache_free(dir_cache, actualCurrent) ;
+
+        if (actualCurrent->children_num != 0) {
+            actualCurrent->children_num = actualCurrent->children_num & ~EXPLICITED_PATH_MASK ;
+        } else {
+            do {
+                if (actualCurrent == root ||
+                    actualCurrent->children_num != 0 || 
+                    actualCurrent->children_num & EXPLICITED_PATH_MASK) break;
+
+                parent = actualCurrent->parent ;
+                actualCurrent->parent->children_num-- ;
+                list_del(&(actualCurrent->siblings)) ;
+                kmem_cache_free(dir_cache, actualCurrent) ;
+                actualCurrent = parent ;
+
+            } while(1) ;
+        }
+
     } else {
         write_unlock(&store_lock) ;
+        clean_oracle_decree(resolved, isResolved) ;
         return 1 ;
     }
 
     write_unlock(&store_lock) ;
+    clean_oracle_decree(resolved, isResolved) ;
     return 0 ;
 }
 
@@ -192,12 +230,28 @@ PATH_CHECK_RESULT path_store_check(klrm_path *path) {
     struct list_head *curr_entry = &(root->children) ;
     struct list_head *tmp ;
     store_entry *child ;
+    char *examinated = path->pathName ;
+    path_decree *resolved ;
     unsigned int j ;
     unsigned int deepness = 0 ;
-    int retVal ;
+    int retVal, isResolved = 0 ;
 
-    j = process_path(path) ;
-    if (j == UINT_MAX) return 1 ;
+    resolved = pathname_oracle(path->pathName) ;
+    if (resolved != NULL) {
+        if (check_inode(resolved->device, resolved->inode)) {
+            clean_oracle_decree(resolved, 1) ;
+            return MATCH_INODE ;
+        } else {
+            isResolved = 1 ;
+        }
+        examinated = resolved->path ;
+    }
+
+    j = process_path(examinated) ;
+    if (j == UINT_MAX) {
+        clean_oracle_decree(resolved, isResolved) ;
+        return 1 ;
+    }
 
     read_lock(&store_lock) ;
 
@@ -208,18 +262,23 @@ PATH_CHECK_RESULT path_store_check(klrm_path *path) {
     read_unlock(&store_lock) ;
 
     if (curr_entry == &(root->children) && retVal == 1) {
+        clean_oracle_decree(resolved, isResolved) ;
         return MATCH_ROOT ;
     }
     if (deepness == j) {
         if (retVal == 1) {
+            clean_oracle_decree(resolved, isResolved) ;
             return FULL_MATCH_LEAF ;
         } else {
+            clean_oracle_decree(resolved, isResolved) ;
             return FULL_MATCH_DIR ;
         }
     } else {
         if (retVal == 1) {
+            clean_oracle_decree(resolved, isResolved) ;
             return SUB_MATCH_LEAF ;
         } else {
+            clean_oracle_decree(resolved, isResolved) ;
             return SUB_MATCH_DIR ;
         }
     }
