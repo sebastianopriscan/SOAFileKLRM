@@ -34,7 +34,7 @@ int setup_inode_store(void) ;
 void cleanup_inode_store(void) ;
 
 int insert_inode_ht(dev_t, unsigned long) ;
-int rm_inode_ht(dev_t, unsigned long) ;
+void rm_inode_ht(dev_t, unsigned long) ;
 
 int check_inode(dev_t, unsigned long) ;
 

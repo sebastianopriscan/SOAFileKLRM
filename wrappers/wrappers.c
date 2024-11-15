@@ -27,6 +27,7 @@ unsigned long the_syscall_table = 0x0;
 module_param(the_syscall_table, ulong, 0660);
 
 #define WRAP_CALL(invocation, write_open_check, from_expr, expr_len, interdiction_return) \
+    klrm_path *path ; \
     printk("Wrapping open") ; \
     if(!write_open_check) { \
         invocation \
@@ -34,7 +35,7 @@ module_param(the_syscall_table, ulong, 0660);
     if(state_machine_try_get_on()) {\
         invocation \
     }\
-    klrm_path *path = kmalloc(sizeof(klrm_path), GFP_KERNEL) ; \
+    path = kmalloc(sizeof(klrm_path), GFP_KERNEL) ; \
     printk("klrm: Kmlloc'd") ; \
     if (path == NULL) { \
         printk("%s: Error allocating path to check with kmalloc", MODNAME) ; \

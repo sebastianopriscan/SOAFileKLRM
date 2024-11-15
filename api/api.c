@@ -44,19 +44,29 @@ static int dev_release(struct inode *inode, struct file *file) {
 static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len, loff_t * off) {
     path_decree *decree ;
     char write_buffer[128] ;
+
+    struct file *file ;
+    struct list_head *tmp ;
+
+    struct dentry *dir ;
+
+    ulong copied_data ;
+    
     printk("klrm: inside api write");
     memset(write_buffer, 0, 128) ;
     printk("klrm: memset on stack buffer to 0") ;
-    copy_from_user(write_buffer, udata, udata_len < 127 ? udata_len : 127) ;
+    copied_data = copy_from_user(write_buffer, udata, udata_len < 127 ? udata_len : 127) ;
+    if(copied_data != 0) {
+        return -EIO ;
+    }
     printk("klrm: copied data from userspace") ;
     //check_password(write_buffer) ;
     //internal_logfilefs_write(write_buffer) ;
 
-    struct file *file = filp_open(write_buffer, O_PATH, 0) ;
-    struct list_head *tmp ;
+    file = filp_open(write_buffer, O_PATH, 0) ;
 
-    struct dentry *dir = file->f_path.dentry ;
-    
+    dir = file->f_path.dentry ;
+
     path_get(&file->f_path) ;
     printk("klrm: Got path") ;
     inode_lock(file->f_inode) ;
@@ -73,7 +83,7 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
         dget(curr) ;
 
         printk("SOAFileKLRM : dgot curr dentry") ;
-        printk("SOAFileKLRM : curr dname is: %px", curr->d_name) ;
+        printk("SOAFileKLRM : curr dname is: %px", &curr->d_name) ;
         printk("SOAFileKLRM : curr dname name is: %px", curr->d_name.name) ;
 
         if(strcmp(".", curr->d_name.name) == 0 || strcmp("..", curr->d_name.name) == 0) {
@@ -104,7 +114,7 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
 
     decree = pathname_oracle(write_buffer) ;
     if (decree != NULL) {
-        printk("SOAFileKLRM : resolved %s as %s, with major %d, minor %d and number %d",
+        printk("SOAFileKLRM : resolved %s as %s, with major %d, minor %d and number %ld",
             write_buffer, decree->path, MAJOR(decree->device), MINOR(decree->device), decree->inode) ;
         kfree(decree) ;
     }

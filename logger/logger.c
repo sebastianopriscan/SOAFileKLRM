@@ -99,7 +99,7 @@ static void do_log_work(unsigned long data) {
         goto DO_DUMP ;
     }
     if (readTot != filesize) {
-        printk("SOAFileKLRM : Unable to dump full file %s, only %d out of %d, doing only partial hash",
+        printk("SOAFileKLRM : Unable to dump full file %s, only %d out of %ld, doing only partial hash",
         payload->pathname, readTot, filesize) ;
     }
     printk("klrm : ran kernel_read_file_from_path, contentbuff is %px", contentbuff) ;

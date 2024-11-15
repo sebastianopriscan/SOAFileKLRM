@@ -37,7 +37,7 @@ static inline int inode_allocate(store_fs * store, unsigned long inode) {
         }
     }
 
-    inode_ht *node = kmem_cache_alloc(inodes_cache, GFP_KERNEL) ;
+    node = kmem_cache_alloc(inodes_cache, GFP_KERNEL) ;
     if (node == NULL) {
         printk("%s : Error allocating new node, aborting add", MODNAME) ;
         write_unlock(&store_lock) ;
@@ -92,7 +92,6 @@ void rm_inode_ht(dev_t table, unsigned long inode) {
     struct list_head *tmp ;
     store_fs *store ;
     inode_ht *node ;
-    int i ;
 
     write_lock(&store_lock) ;
     list_for_each(tmp, &fs_stores) {
@@ -104,7 +103,7 @@ void rm_inode_ht(dev_t table, unsigned long inode) {
                 if (node->num == inode) {
 
                     node->refCount-- ;
-                    inode_deallocate(inode) ;
+                    inode_deallocate(node) ;
 
                     write_unlock(&store_lock) ;
                     return ;
@@ -115,11 +114,12 @@ void rm_inode_ht(dev_t table, unsigned long inode) {
 }
 
 int check_inode(dev_t table, unsigned long inode) {
-    read_lock(&store_lock) ;
 
     struct list_head *tmp, *tmp2 ;
     store_fs *store ;
     inode_ht *node ;
+
+    read_lock(&store_lock) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
@@ -144,14 +144,14 @@ int setup_inode_store(void) {
 
     fs_cache = kmem_cache_create("SOAFileKLRM-fs", sizeof(store_fs), 0, SLAB_POISON, setup_area) ;
     if (fs_cache == NULL) {
-        printk("%s : Error setupping fs cache") ;
+        printk("SOAFileKLRM : Error setupping fs cache") ;
         return 1 ;
     }
 
     inodes_cache = kmem_cache_create("SOAFileKLRM-ino", sizeof(inode_ht), 0, SLAB_POISON, setup_area) ;
     if (inodes_cache == NULL) {
         kmem_cache_destroy(fs_cache) ;
-        printk("%s : Error setupping inode cache") ;
+        printk("SOAFileKLRM : Error setupping inode cache") ;
         return 1 ;
     }
 

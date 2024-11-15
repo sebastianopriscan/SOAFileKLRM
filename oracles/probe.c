@@ -26,7 +26,7 @@ unsigned long addr_kprobe_oracle(char *symbol) {
 	ret = register_kprobe(&kp);
 	if (ret < 0) {
 		pr_info("hook init failed, returned %d\n", ret);
-		return NULL;
+		return 0;
 	}
     printk("klrm: addr after probe is %lu", (unsigned long) kp.addr) ;
 	addr = (unsigned long) kp.addr ;

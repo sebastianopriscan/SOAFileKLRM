@@ -42,8 +42,9 @@ do {\
 LOOP_LABEL: \
  \
     list_for_each(tmp, curr_entry) { \
+        store_entry *prntt; \
         child = list_entry(tmp, store_entry, siblings) ; \
-        store_entry *prntt = list_entry(curr_entry, store_entry, children) ;\
+        prntt = list_entry(curr_entry, store_entry, children) ;\
         printk("%s: looping over %s children, now it's %s", MODNAME, prntt->dir_name, child->dir_name) ; \
         if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
             curr_entry = &(child->children) ; \
@@ -150,7 +151,7 @@ int path_store_add(klrm_path *path) {
     }
 
     actualCurrent = container_of(curr_entry, store_entry, children) ;
-    actualCurrent->children_num | EXPLICITED_PATH_MASK ;
+    actualCurrent->children_num = actualCurrent->children_num | EXPLICITED_PATH_MASK ;
 
     store_iterate_add(resolved->file) ;
     

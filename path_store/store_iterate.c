@@ -38,7 +38,7 @@ REPLAY :
 
         curr_ino = d_inode(curr) ;
         if (curr_ino == NULL) {
-            d_put(curr) ;
+            dput(curr) ;
             continue ;
         }
 
@@ -60,7 +60,7 @@ REPLAY :
     dput(dir) ;
 
     if(!list_empty(&stack)) {
-        internal_stack *entry_stack = container_of(&stack.next, internal_stack, list) ;
+        internal_stack *entry_stack = container_of(stack.next, internal_stack, list) ;
         dir = entry_stack->ptr ;
         list_del(stack.next) ;
         kfree(entry_stack) ;
@@ -91,7 +91,7 @@ REPLAY :
 
         curr_ino = d_inode(curr) ;
         if (curr_ino == NULL) {
-            d_put(curr) ;
+            dput(curr) ;
             continue ;
         }
 
@@ -113,7 +113,7 @@ REPLAY :
     dput(dir) ;
 
     if(!list_empty(&stack)) {
-        internal_stack *entry_stack = container_of(&stack.next, internal_stack, list) ;
+        internal_stack *entry_stack = container_of(stack.next, internal_stack, list) ;
         dir = entry_stack->ptr ;
         list_del(stack.next) ;
         kfree(entry_stack) ;

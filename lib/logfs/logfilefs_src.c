@@ -130,7 +130,7 @@ struct dentry *singlefilefs_mount(struct file_system_type *fs_type, int flags, c
     ret = mount_bdev(fs_type, flags, dev_name, data, singlefilefs_fill_super);
 
     if (unlikely(IS_ERR(ret)))
-        printk("%s: error mounting onefilefs",MOD_NAME);
+        printk("%s: error mounting onefilefs: %ld",MOD_NAME, PTR_ERR(ret));
     else
         printk("%s: singlefilefs is succesfully mounted on from device %s\n",MOD_NAME,dev_name);
 
