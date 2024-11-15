@@ -26,6 +26,7 @@ stop:
 	sudo rmmod klrm.ko
 
 all:
+	$(CC) --version
 	./utils/password_gen/passwordgen.sh
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 	rm ./password_setup/password.c
