@@ -20,7 +20,7 @@ or more recent editions.
 #define MODNAME "SOAFileKLRM"
 
 long long circular_buffer_start, circular_buffer_end ;
-rwlock_t log_file_lock;
+struct mutex log_file_mutex;
 uint64_t file_size ;
 
 ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
@@ -32,7 +32,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     loff_t offset, circular_pos;
     int block_to_read;//index of the block to be read from device
 
-    read_lock(&log_file_lock) ;
+    mutex_lock(&log_file_mutex) ;
 
     printk("%s: read operation called with len %ld - and offset %lld (the current file size is %lld)",MOD_NAME, len, *off, file_size);
 
@@ -45,7 +45,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
         *off = circular_buffer_start ;
     }
     if (*off >= circular_buffer_end) {
-        read_unlock(&log_file_lock) ;
+        mutex_unlock(&log_file_mutex) ;
         return 0;
     }
     else if (*off + len > circular_buffer_end)
@@ -69,16 +69,64 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     bh = (struct buffer_head *)sb_bread(filp->f_path.dentry->d_inode->i_sb, block_to_read);
     if(!bh){
-    read_unlock(&log_file_lock) ;
-	return -EIO;
+        mutex_unlock(&log_file_mutex) ;
+        return -EIO;
     }
     ret = copy_to_user(buf,bh->b_data + offset, len);
     *off += (len - ret);
     brelse(bh);
 
-    read_unlock(&log_file_lock) ;
+    mutex_unlock(&log_file_mutex) ;
     return len - ret;
 
+}
+
+ssize_t logfilefs_write(struct file * filp, char __user *buf, size_t len, loff_t *off ) {
+
+    long long orig_end = circular_buffer_end ;
+    size_t copied = 0 ;
+    struct buffer_head *bh ;
+    long long selected_sector ;
+
+    mutex_lock(&log_file_mutex) ;
+    if (!mounted) {
+        printk("SOAFileKLRM : logging fs not mounted") ;
+        mutex_unlock(&log_file_mutex) ;
+        return ;
+    }
+
+    circular_buffer_end += len ;
+    if (circular_buffer_end < file_size) {
+
+        if (circular_buffer_end + len > file_size) {
+            circular_buffer_start += len - file_size ;
+        } 
+    } else {
+        circular_buffer_start += len ;
+    }
+
+    do {
+        long long circular_buffer_pos, pos_index ;
+        ssize_t delta = len - copied ;
+
+        circular_buffer_pos = (orig_end + copied) % file_size ;
+        pos_index = circular_buffer_pos % DEFAULT_BLOCK_SIZE ;
+        if (pos_index + delta > DEFAULT_BLOCK_SIZE) {
+            delta = DEFAULT_BLOCK_SIZE - pos_index ;
+        }
+        selected_sector = (circular_buffer_pos / DEFAULT_BLOCK_SIZE) +2 ;
+        bh = (struct buffer_head *)sb_bread(singleton_sb, selected_sector);
+        if (!bh) {
+            mutex_unlock(&log_file_mutex) ;
+            printk("SOAFileKLRM : sb_bread error, logging aborted") ;
+            return ;
+        }
+        memcpy(bh->b_data + pos_index, buf + copied, delta) ;
+        copied += delta ;
+        brelse(bh) ;
+    } while(copied != len) ;
+
+    mutex_unlock(&log_file_mutex) ;
 }
 
 void internal_logfilefs_write(char *payload) {
@@ -89,10 +137,10 @@ void internal_logfilefs_write(char *payload) {
     struct buffer_head *bh ;
     long long selected_sector ;
 
-    write_lock(&log_file_lock) ;
+    mutex_lock(&log_file_mutex) ;
     if (!mounted) {
         printk("SOAFileKLRM : logging fs not mounted") ;
-        write_unlock(&log_file_lock) ;
+        mutex_unlock(&log_file_mutex) ;
         return ;
     }
 
@@ -118,7 +166,7 @@ void internal_logfilefs_write(char *payload) {
         selected_sector = (circular_buffer_pos / DEFAULT_BLOCK_SIZE) +2 ;
         bh = (struct buffer_head *)sb_bread(singleton_sb, selected_sector);
         if (!bh) {
-            write_unlock(&log_file_lock) ;
+            mutex_unlock(&log_file_mutex) ;
             printk("SOAFileKLRM : sb_bread error, logging aborted") ;
             return ;
         }
@@ -127,7 +175,7 @@ void internal_logfilefs_write(char *payload) {
         brelse(bh) ;
     } while(copied != payloadlen) ;
 
-    write_unlock(&log_file_lock) ;
+    mutex_unlock(&log_file_mutex) ;
 }
 
 struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child_dentry, unsigned int flags) {
@@ -193,5 +241,5 @@ const struct inode_operations onefilefs_inode_ops = {
 const struct file_operations onefilefs_file_operations = {
     .owner = THIS_MODULE,
     .read = onefilefs_read,
-    //.write = onefilefs_write //please implement this function to complete the exercise
+    .write = logfilefs_write //please implement this function to complete the exercise
 };

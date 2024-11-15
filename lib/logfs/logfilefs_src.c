@@ -150,7 +150,7 @@ int singlefilefs_init(void) {
     int ret;
 
     spin_lock_init(&sb_lock) ;
-    rwlock_init(&log_file_lock) ;
+    mutex_init(&log_file_lock) ;
 
     //register filesystem
     ret = register_filesystem(&onefilefs_type);
