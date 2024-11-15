@@ -58,7 +58,7 @@ struct onefilefs_sb_info {
 // file.c
 extern const struct inode_operations onefilefs_inode_ops;
 extern const struct file_operations onefilefs_file_operations; 
-extern rwlock_t log_file_lock;
+extern struct mutex log_file_mutex;
 extern uint64_t file_size ;
 extern long long circular_buffer_start;
 extern long long circular_buffer_end;

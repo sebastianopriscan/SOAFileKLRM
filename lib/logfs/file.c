@@ -26,8 +26,6 @@ uint64_t file_size ;
 ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t * off) {
 
     struct buffer_head *bh = NULL;
-    struct inode * the_inode = filp->f_inode;
-    uint64_t file_size = the_inode->i_size;
     int ret;
     loff_t offset, circular_pos;
     int block_to_read;//index of the block to be read from device
@@ -54,6 +52,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     //determine the block level offset for the operation
     circular_pos = *off % file_size ;
+    printk("%s : position in all buffer is %lld", MOD_NAME, circular_pos) ;
     if ((*off + len) % file_size < circular_pos) {
         len = file_size - circular_pos ;
     }
@@ -64,6 +63,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
     //compute the actual index of the the block to be read from device
     block_to_read = circular_pos / DEFAULT_BLOCK_SIZE + 2; //the value 2 accounts for superblock and file-inode on device
+    printk("%s : reading in all block %d", MOD_NAME, block_to_read) ;
     
     printk("%s: read operation must access block %d of the device",MOD_NAME, block_to_read);
 
@@ -81,19 +81,17 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
 }
 
-ssize_t logfilefs_write(struct file * filp, char __user *buf, size_t len, loff_t *off ) {
+ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, loff_t *off ) {
 
-    long long orig_end = circular_buffer_end ;
+    long long orig_start, orig_end ;
     size_t copied = 0 ;
     struct buffer_head *bh ;
     long long selected_sector ;
 
     mutex_lock(&log_file_mutex) ;
-    if (!mounted) {
-        printk("SOAFileKLRM : logging fs not mounted") ;
-        mutex_unlock(&log_file_mutex) ;
-        return ;
-    }
+
+    orig_start = circular_buffer_start ;
+    orig_end = circular_buffer_end ;
 
     circular_buffer_end += len ;
     if (circular_buffer_end < file_size) {
@@ -105,28 +103,53 @@ ssize_t logfilefs_write(struct file * filp, char __user *buf, size_t len, loff_t
         circular_buffer_start += len ;
     }
 
+    printk("%s: orig_start %lld, orig_end %lld, circular_buffer_start %lld, circular_buffer_end %lld",
+        MOD_NAME, orig_start, orig_end, circular_buffer_start, circular_buffer_end) ;
+
     do {
         long long circular_buffer_pos, pos_index ;
         ssize_t delta = len - copied ;
+        int copied_result ;
 
         circular_buffer_pos = (orig_end + copied) % file_size ;
         pos_index = circular_buffer_pos % DEFAULT_BLOCK_SIZE ;
+        printk("%s: position in all buffer is %lld", MOD_NAME, pos_index) ;
         if (pos_index + delta > DEFAULT_BLOCK_SIZE) {
             delta = DEFAULT_BLOCK_SIZE - pos_index ;
         }
         selected_sector = (circular_buffer_pos / DEFAULT_BLOCK_SIZE) +2 ;
+        printk("%s: which resides in %lld block", MOD_NAME, selected_sector) ;
         bh = (struct buffer_head *)sb_bread(singleton_sb, selected_sector);
         if (!bh) {
-            mutex_unlock(&log_file_mutex) ;
             printk("SOAFileKLRM : sb_bread error, logging aborted") ;
-            return ;
+            break ;
         }
-        memcpy(bh->b_data + pos_index, buf + copied, delta) ;
+        copied_result = copy_from_user(bh->b_data + pos_index, buf + copied, delta) ;
+        if (copied_result != 0) {
+            brelse(bh) ;
+            printk("SOAFileKLRM : copy_from_user_error") ;
+            break;
+        }
         copied += delta ;
         brelse(bh) ;
     } while(copied != len) ;
 
+    printk("%s : In the end, %ld bytes have been copied", MOD_NAME, copied) ;
+    circular_buffer_end = orig_end + copied ;
+    if (circular_buffer_end < file_size) {
+
+        if (circular_buffer_end + copied > file_size) {
+            circular_buffer_start += copied - file_size ;
+        } 
+    } else {
+        circular_buffer_start += copied ;
+    }
+
+    *off += copied ;
+
     mutex_unlock(&log_file_mutex) ;
+
+    return copied ;
 }
 
 void internal_logfilefs_write(char *payload) {
