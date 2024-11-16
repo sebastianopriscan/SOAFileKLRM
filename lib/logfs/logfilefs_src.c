@@ -73,6 +73,7 @@ int singlefilefs_fill_super(struct super_block *sb, void *data, int silent) {
     file_size = inode_disk->file_size ;
     circular_buffer_start = inode_disk->circular_buffer_start ;
     circular_buffer_end = inode_disk->circular_buffer_end ;
+    printk("SOAFileKLRM : circular buffer start is %lld, end is %lld", circular_buffer_start, circular_buffer_end) ;
     brelse(inode_bh) ;
 
     printk("SOAFileKLRM : Setup inode global data") ;
@@ -112,12 +113,27 @@ int singlefilefs_fill_super(struct super_block *sb, void *data, int silent) {
     return 0;
 }
 
-static void singlefilefs_kill_superblock(struct super_block *s) {
+static void singlefilefs_kill_superblock(struct super_block *sb) {
+    struct buffer_head *inode_bh;
+    struct onefilefs_inode *inode_disk ;
+    
     spin_lock(&sb_lock) ;
+
+    inode_bh = sb_bread(sb, 1) ;
+    if (!inode_bh){
+        printk("SOAFileKLRM : Error, unable to store status information about the filesystem") ;
+        return ;
+    }
+    inode_disk = (struct onefilefs_inode *)inode_bh->b_data ;
+    printk("SOAFileKLRM : circular buffer start is %lld, end is %lld", circular_buffer_start, circular_buffer_end) ;
+    inode_disk->circular_buffer_start = circular_buffer_start ;
+    inode_disk->circular_buffer_end = circular_buffer_end;
+    brelse(inode_bh) ;
+    sync_filesystem(sb) ;
     singleton_sb = NULL ;
     mounted = 0;
     spin_unlock(&sb_lock) ;
-    kill_block_super(s);
+    kill_block_super(sb);
     printk(KERN_INFO "%s: singlefilefs unmount succesful.\n",MOD_NAME);
     return;
 }

@@ -33,6 +33,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
     mutex_lock(&log_file_mutex) ;
 
     printk("%s: read operation called with len %ld - and offset %lld (the current file size is %lld)",MOD_NAME, len, *off, file_size);
+    printk("%s : circular buffer start is %lld, circular buffer end is %lld", MOD_NAME, circular_buffer_start, circular_buffer_end) ;
 
     //this operation is not synchronized 
     //*off can be changed concurrently 
@@ -81,6 +82,7 @@ ssize_t onefilefs_read(struct file * filp, char __user * buf, size_t len, loff_t
 
 }
 
+//DEBUG ONLY
 ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, loff_t *off ) {
 
     long long orig_start, orig_end ;
@@ -93,18 +95,6 @@ ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, 
     orig_start = circular_buffer_start ;
     orig_end = circular_buffer_end ;
 
-    circular_buffer_end += len ;
-    if (circular_buffer_end < file_size) {
-
-        if (circular_buffer_end + len > file_size) {
-            circular_buffer_start += len - file_size ;
-        } 
-    } else {
-        circular_buffer_start += len ;
-    }
-
-    printk("%s: orig_start %lld, orig_end %lld, circular_buffer_start %lld, circular_buffer_end %lld",
-        MOD_NAME, orig_start, orig_end, circular_buffer_start, circular_buffer_end) ;
 
     do {
         long long circular_buffer_pos, pos_index ;
@@ -112,7 +102,7 @@ ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, 
         int copied_result ;
 
         circular_buffer_pos = (orig_end + copied) % file_size ;
-        pos_index = circular_buffer_pos % DEFAULT_BLOCK_SIZE ;
+        pos_index = (circular_buffer_pos) % DEFAULT_BLOCK_SIZE ;
         printk("%s: position in all buffer is %lld", MOD_NAME, pos_index) ;
         if (pos_index + delta > DEFAULT_BLOCK_SIZE) {
             delta = DEFAULT_BLOCK_SIZE - pos_index ;
@@ -126,6 +116,7 @@ ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, 
         }
         copied_result = copy_from_user(bh->b_data + pos_index, buf + copied, delta) ;
         if (copied_result != 0) {
+            copied += delta - copied_result ;
             brelse(bh) ;
             printk("SOAFileKLRM : copy_from_user_error") ;
             break;
@@ -135,17 +126,17 @@ ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, 
     } while(copied != len) ;
 
     printk("%s : In the end, %ld bytes have been copied", MOD_NAME, copied) ;
-    circular_buffer_end = orig_end + copied ;
-    if (circular_buffer_end < file_size) {
 
-        if (circular_buffer_end + copied > file_size) {
-            circular_buffer_start += copied - file_size ;
-        } 
-    } else {
+    if (circular_buffer_end >= file_size) {
         circular_buffer_start += copied ;
+    } else if (circular_buffer_end + copied >= file_size) {
+        circular_buffer_start += circular_buffer_end + copied - file_size ;
     }
+    circular_buffer_end += copied ;
+    printk("%s: orig_start %lld, orig_end %lld, circular_buffer_start %lld, circular_buffer_end %lld",
+        MOD_NAME, orig_start, orig_end, circular_buffer_start, circular_buffer_end) ;
 
-    *off += copied ;
+    *off = circular_buffer_end ;
 
     mutex_unlock(&log_file_mutex) ;
 
@@ -154,39 +145,35 @@ ssize_t logfilefs_write(struct file * filp, const char __user *buf, size_t len, 
 
 void internal_logfilefs_write(char *payload) {
 
-    long long orig_end = circular_buffer_end ;
-    size_t payloadlen = strlen(payload) ;
+    long long orig_start, orig_end ;
     size_t copied = 0 ;
     struct buffer_head *bh ;
     long long selected_sector ;
+    size_t len ;
 
-    mutex_lock(&log_file_mutex) ;
-    if (!mounted) {
-        printk("SOAFileKLRM : logging fs not mounted") ;
-        mutex_unlock(&log_file_mutex) ;
+    len = strlen(payload) ;
+    if (len == 0) {
         return ;
     }
 
-    circular_buffer_end += payloadlen ;
-    if (circular_buffer_end < file_size) {
+    mutex_lock(&log_file_mutex) ;
 
-        if (circular_buffer_end + payloadlen > file_size) {
-            circular_buffer_start += payloadlen - file_size ;
-        } 
-    } else {
-        circular_buffer_start += payloadlen ;
-    }
+    orig_start = circular_buffer_start ;
+    orig_end = circular_buffer_end ;
+
 
     do {
         long long circular_buffer_pos, pos_index ;
-        ssize_t delta = payloadlen - copied ;
+        ssize_t delta = len - copied ;
 
         circular_buffer_pos = (orig_end + copied) % file_size ;
-        pos_index = circular_buffer_pos % DEFAULT_BLOCK_SIZE ;
+        pos_index = (circular_buffer_pos) % DEFAULT_BLOCK_SIZE ;
+        printk("%s: position in all buffer is %lld", MOD_NAME, pos_index) ;
         if (pos_index + delta > DEFAULT_BLOCK_SIZE) {
             delta = DEFAULT_BLOCK_SIZE - pos_index ;
         }
         selected_sector = (circular_buffer_pos / DEFAULT_BLOCK_SIZE) +2 ;
+        printk("%s: which resides in %lld block", MOD_NAME, selected_sector) ;
         bh = (struct buffer_head *)sb_bread(singleton_sb, selected_sector);
         if (!bh) {
             mutex_unlock(&log_file_mutex) ;
@@ -196,9 +183,23 @@ void internal_logfilefs_write(char *payload) {
         memcpy(bh->b_data + pos_index, payload + copied, delta) ;
         copied += delta ;
         brelse(bh) ;
-    } while(copied != payloadlen) ;
+    } while(copied != len) ;
+
+    printk("%s : In the end, %ld bytes have been copied", MOD_NAME, copied) ;
+
+    if (circular_buffer_end >= file_size) {
+        circular_buffer_start += copied ;
+    } else if (circular_buffer_end + copied >= file_size) {
+        circular_buffer_start += circular_buffer_end + copied - file_size ;
+    }
+    circular_buffer_end += copied ;
+    printk("%s: orig_start %lld, orig_end %lld, circular_buffer_start %lld, circular_buffer_end %lld",
+        MOD_NAME, orig_start, orig_end, circular_buffer_start, circular_buffer_end) ;
+
 
     mutex_unlock(&log_file_mutex) ;
+
+    return ;
 }
 
 struct dentry *onefilefs_lookup(struct inode *parent_inode, struct dentry *child_dentry, unsigned int flags) {
