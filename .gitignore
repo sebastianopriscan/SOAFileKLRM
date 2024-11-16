@@ -7,3 +7,7 @@
 Module.symvers
 modules.order
 password.c
+user/mount/
+user/klrmctl
+user/logfilemakefs
+user/image
