@@ -23,11 +23,13 @@ void store_iterate_add(struct file *file) {
     struct list_head *tmp ;
     struct list_head stack = LIST_HEAD_INIT(stack) ;
     struct dentry *dir = file->f_path.dentry ;
+    int insert_result ;
 
     path_get(&file->f_path) ;
     inode_lock(file->f_inode) ;
     down_read(&file->f_inode->i_sb->s_umount) ;
     insert_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
+
 REPLAY :
     list_for_each(tmp, &dir->d_subdirs) {
         struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
@@ -44,9 +46,9 @@ REPLAY :
 
         inode_lock(curr->d_inode) ;
 
-        insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
+        insert_result = insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
 
-        if(!list_empty(&curr->d_subdirs)) {
+        if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
             stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
             stkntry->ptr = curr ;
             list_add(&stkntry->list, &stack) ;
@@ -76,6 +78,7 @@ void store_iterate_rm(struct file *file) {
     struct list_head *tmp ;
     struct list_head stack = LIST_HEAD_INIT(stack) ;
     struct dentry *dir = file->f_path.dentry ;
+    int insert_result ;
 
     path_get(&file->f_path) ;
     inode_lock(file->f_inode) ;
@@ -97,9 +100,9 @@ REPLAY :
 
         inode_lock(curr->d_inode) ;
 
-        rm_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
+        insert_result = rm_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
 
-        if(!list_empty(&curr->d_subdirs)) {
+        if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
             stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
             stkntry->ptr = curr ;
             list_add(&stkntry->list, &stack) ;

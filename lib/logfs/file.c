@@ -158,6 +158,12 @@ void internal_logfilefs_write(char *payload) {
 
     mutex_lock(&log_file_mutex) ;
 
+    if (mounted == 0) {
+        printk("%s : FS not mounted, payload was %s", MOD_NAME, payload) ;
+        mutex_unlock(&log_file_mutex) ;
+        return ;
+    }
+
     orig_start = circular_buffer_start ;
     orig_end = circular_buffer_end ;
 

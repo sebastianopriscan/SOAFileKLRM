@@ -19,6 +19,7 @@ typedef struct _store_entry store_entry ;
 typedef struct _inode_ht {
     uint num ;
     unsigned long refCount ;
+    unsigned long long stamp ;
     struct list_head peers ;
 } inode_ht ;
 
@@ -29,14 +30,17 @@ typedef struct _store_fs {
 } store_fs ;
 
 extern rwlock_t store_lock ;
+extern unsigned long long nonce ;
 
 int setup_inode_store(void) ;
 void cleanup_inode_store(void) ;
 
 int insert_inode_ht(dev_t, unsigned long) ;
-void rm_inode_ht(dev_t, unsigned long) ;
+int rm_inode_ht(dev_t, unsigned long) ;
 
 int check_inode(dev_t, unsigned long) ;
+
+void refresh_nonces(unsigned long) ;
 
 void store_iterate_add(struct file *) ;
 void store_iterate_rm(struct file *) ;

@@ -153,9 +153,25 @@ int path_store_add(klrm_path *path) {
     actualCurrent = container_of(curr_entry, store_entry, children) ;
     actualCurrent->children_num = actualCurrent->children_num | EXPLICITED_PATH_MASK ;
 
+    nonce++ ;
     store_iterate_add(resolved->file) ;
-    
-    write_unlock(&store_lock) ;
+    if (unlikely(nonce == ULLONG_MAX)) {
+        //This will unlock the store
+        struct work_struct *work_unit = kmalloc(sizeof(struct work_struct), GFP_KERNEL) ;
+        if (IS_ERR(work_unit)) {
+            write_unlock(&store_lock) ;
+        } else {
+            __INIT_WORK(work_unit, (void *)refresh_nonces, (unsigned long)work_unit) ;
+            if (try_module_get(THIS_MODULE)) {
+                //module_put(THIS_MODULE) ;
+                //kfree(work_unit) ;
+                schedule_work(work_unit) ;
+            }
+        }
+    }
+    else {
+        write_unlock(&store_lock) ;
+    }
 
     clean_oracle_decree(resolved, isResolved) ;
     return 0 ;
@@ -171,6 +187,7 @@ int path_store_rm(klrm_path *path) {
     path_decree *resolved ;
     char *examinated = path->pathName ;
     int isResolved = 0 ;
+    int nonce_refresh = 0 ;
 
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {
@@ -196,6 +213,7 @@ int path_store_rm(klrm_path *path) {
             clean_oracle_decree(resolved, isResolved) ;
             return 1 ;
         }
+        nonce++ ;
         store_iterate_rm(resolved->file) ;
 
         if (actualCurrent->children_num != 0) {
@@ -221,7 +239,23 @@ int path_store_rm(klrm_path *path) {
         return 1 ;
     }
 
-    write_unlock(&store_lock) ;
+    if (unlikely(nonce == ULLONG_MAX)) {
+        //This will unlock the store
+        struct work_struct *work_unit = kmalloc(sizeof(struct work_struct), GFP_KERNEL) ;
+        if (IS_ERR(work_unit)) {
+            write_unlock(&store_lock) ;
+        } else {
+            __INIT_WORK(work_unit, (void *)refresh_nonces, (unsigned long)work_unit) ;
+            if (try_module_get(THIS_MODULE)) {
+                //module_put(THIS_MODULE) ;
+                //kfree(work_unit) ;
+                schedule_work(work_unit) ;
+            }
+        }
+    }
+    else {
+        write_unlock(&store_lock) ;
+    }
     clean_oracle_decree(resolved, isResolved) ;
     return 0 ;
 }

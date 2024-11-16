@@ -30,23 +30,25 @@ static inline int inode_allocate(store_fs * store, unsigned long inode) {
         node = container_of(tmp, inode_ht, peers) ;
         if (node->num == inode) {
 
-            node->refCount++ ;
+            if (node->stamp < nonce) {
+                node->refCount++ ;
+                node->stamp = nonce ;
+                return 1 ;
+            }
 
-            write_unlock(&store_lock) ;
-            return 1 ;
+            return -1 ;
         }
     }
 
     node = kmem_cache_alloc(inodes_cache, GFP_KERNEL) ;
     if (node == NULL) {
         printk("%s : Error allocating new node, aborting add", MODNAME) ;
-        write_unlock(&store_lock) ;
         return 0 ;
     }
     node->num = inode ;
     node->refCount++ ;
+    node->stamp = nonce ;
     list_add(&node->peers, &(store->inodes[inode % HASH_TABLE_SIZE])) ;
-    write_unlock(&store_lock) ;
     return 1 ;
 }
 
@@ -56,7 +58,6 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
     store_fs *store ;
     int i ;
 
-    write_lock(&store_lock) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
@@ -67,7 +68,6 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
     store = kmem_cache_alloc(fs_cache, GFP_KERNEL) ;
     if (store == NULL) {
         printk("%s : Error allocating new fs cache, aborting add", MODNAME) ;
-        write_unlock(&store_lock) ;
         return 0 ;
     }
     store->stores.next = &store->stores ;
@@ -87,13 +87,12 @@ static inline void inode_deallocate(inode_ht *node) {
     kmem_cache_free(inodes_cache, node) ;
 }
 
-void rm_inode_ht(dev_t table, unsigned long inode) {
+int rm_inode_ht(dev_t table, unsigned long inode) {
 
     struct list_head *tmp ;
     store_fs *store ;
     inode_ht *node ;
 
-    write_lock(&store_lock) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
 
@@ -102,15 +101,19 @@ void rm_inode_ht(dev_t table, unsigned long inode) {
                 node = container_of(tmp, inode_ht, peers) ;
                 if (node->num == inode) {
 
-                    node->refCount-- ;
-                    inode_deallocate(node) ;
+                    if (node->stamp < nonce) {
+                        node->refCount-- ;
+                        node->stamp = nonce ;
+                        inode_deallocate(node) ;
+                        return 1 ;
+                    }
 
-                    write_unlock(&store_lock) ;
-                    return ;
+                    return -1 ;
                 }
             }
         }
     }
+    return 0 ;
 }
 
 int check_inode(dev_t table, unsigned long inode) {
@@ -119,20 +122,17 @@ int check_inode(dev_t table, unsigned long inode) {
     store_fs *store ;
     inode_ht *node ;
 
-    read_lock(&store_lock) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
             list_for_each(tmp2, &store->inodes[inode % HASH_TABLE_SIZE]) {
                 node = container_of(tmp2, inode_ht, peers) ;
                 if (node->num == inode) {
-                    read_unlock(&store_lock) ;
                     return 1 ;
                 }
             }
         }
     }
-    read_unlock(&store_lock) ;
     return 0 ;
 }
 
@@ -158,6 +158,27 @@ int setup_inode_store(void) {
     return 0 ;
 }
 
+//O(saved_nodes) function, quite heavy, but on practical scenarios might never be executed
+void refresh_nonces(unsigned long work_unit) {
+    struct list_head *tmp, *tmp2 ;
+    store_fs *store ;
+    inode_ht *node ;
+    int i ;
+
+    list_for_each(tmp, &fs_stores) {
+        store = container_of(tmp, store_fs, stores) ;
+        for (i = 0; i < HASH_TABLE_SIZE; i++) {
+            list_for_each(tmp2, &store->inodes[i]) {
+                node = container_of(tmp2, inode_ht, peers) ;
+                node->stamp = 0 ;
+            }
+        }
+    }
+    nonce = 0 ;
+    module_put(THIS_MODULE) ;
+    kfree((void *)work_unit) ;
+    return 0 ;
+}
 
 void cleanup_inode_store(void) {
 
