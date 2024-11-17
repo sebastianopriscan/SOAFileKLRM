@@ -23,8 +23,8 @@ TOGGLE rec ;
 TOGGLE set ;
 
 void setup_state_machine(void) {
-    sema_init(&rec_sem, 0) ;
-    sema_init(&set_sem, 0) ;
+    init_rwsem(&rec_sem) ;
+    init_rwsem(&set_sem) ;
 }
 
 void cleanup_state_machine(void) {

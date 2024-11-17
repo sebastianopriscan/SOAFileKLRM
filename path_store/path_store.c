@@ -58,7 +58,6 @@ LOOP_LABEL: \
 
 #define clean_oracle_decree(decree, isDecree) do {\
     if (isDecree) { \
-        filp_close(decree->file, NULL) ; \
         kfree(decree) ;\
     } \
 } while (0) ; \
@@ -155,7 +154,7 @@ int path_store_add(klrm_path *path) {
     actualCurrent->children_num = actualCurrent->children_num | EXPLICITED_PATH_MASK ;
 
     nonce++ ;
-    store_iterate_add(resolved->file) ;
+    store_iterate_add(&resolved->path_struct) ;
     if (unlikely(nonce == ULLONG_MAX)) {
         //This will unlock the store
         struct work_struct *work_unit = kmalloc(sizeof(struct work_struct), GFP_KERNEL) ;
@@ -214,7 +213,7 @@ int path_store_rm(klrm_path *path) {
             return 1 ;
         }
         nonce++ ;
-        store_iterate_rm(resolved->file) ;
+        store_iterate_rm(&resolved->path_struct) ;
 
         if (actualCurrent->children_num != 0) {
             actualCurrent->children_num = actualCurrent->children_num & ~EXPLICITED_PATH_MASK ;

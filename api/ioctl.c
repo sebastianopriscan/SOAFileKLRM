@@ -104,8 +104,6 @@ ssize_t klrm_path_check(klrm_input *input) {
 
 ssize_t klrm_set(klrm_input *input) {
 
-    ssize_t ret ;
-
     if (check_password(input->password) != 0) {
         return -EACCES ;
     }
@@ -123,8 +121,6 @@ ssize_t klrm_set(klrm_input *input) {
 }
 
 ssize_t klrm_rec(klrm_input *input) {
-
-    ssize_t ret ;
 
     if (check_password(input->password) != 0) {
         return -EACCES ;

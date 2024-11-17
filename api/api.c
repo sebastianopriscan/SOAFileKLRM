@@ -101,8 +101,9 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
                         kfree(link) ;
                     } else {
                         struct path resolved ;
+                        int result ;
                         printk("SOAFileKLRM : entering kern_path") ;
-                        int result = kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
+                        result = kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
                         printk("SOAFileKLRM : Exited kern_path") ;
                         if (resolved.dentry != NULL) {
                             dget(resolved.dentry) ;

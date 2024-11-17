@@ -19,23 +19,29 @@ typedef struct _internal_stack {
 
 } internal_stack ;
 
-void store_iterate_add(struct file *file) {
+void store_iterate_add(struct path *path) {
 
     struct list_head *tmp ;
     struct list_head stack = LIST_HEAD_INIT(stack) ;
-    struct dentry *dir = file->f_path.dentry ;
+    struct dentry *dir = path->dentry ;
+    struct inode *ino_res ;
     int insert_result ;
 
-    path_get(&file->f_path) ;
+    path_get(path) ;
     dget(dir) ;
-    inode_lock_shared(file->f_inode) ;
-    down_read(&file->f_inode->i_sb->s_umount) ;
+    ino_res = d_inode(dir) ;
+    if(ino_res == NULL) {
+        dput(dir) ;
+        path_put(path) ;
+        printk("SOAFileKLRM : Store iterate got a spurious path") ;
+        return ;
+    }
+    inode_lock_shared(path->dentry->d_inode) ;
     insert_result = insert_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
     if(insert_result == -1) {
-        up_read(&file->f_inode->i_sb->s_umount) ;
-        inode_unlock_shared(file->f_inode) ;
+        inode_unlock_shared(dir->d_inode) ;
         dput(dir) ;
-        path_put(&file->f_path) ;
+        path_put(path) ;
         return ;
     }
 
@@ -117,27 +123,32 @@ REPLAY :
         goto REPLAY ;
     }
 
-    up_read(&file->f_inode->i_sb->s_umount) ;
     return ;
 }
 
-void store_iterate_rm(struct file *file) {
+void store_iterate_rm(struct path *path) {
 
     struct list_head *tmp ;
     struct list_head stack = LIST_HEAD_INIT(stack) ;
-    struct dentry *dir = file->f_path.dentry ;
+    struct dentry *dir = path->dentry ;
+    struct inode *ino_res ;
     int insert_result ;
 
-    path_get(&file->f_path) ;
+    path_get(path) ;
     dget(dir) ;
-    inode_lock_shared(file->f_inode) ;
-    down_read(&file->f_inode->i_sb->s_umount) ;
+    ino_res = d_inode(dir) ;
+    if(ino_res == NULL) {
+        dput(dir) ;
+        path_put(path) ;
+        printk("SOAFileKLRM : Store iterate got a spurious path") ;
+        return ;
+    }
+    inode_lock_shared(path->dentry->d_inode) ;
     insert_result = rm_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
     if(insert_result == -1) {
-        up_read(&file->f_inode->i_sb->s_umount) ;
-        inode_unlock_shared(file->f_inode) ;
+        inode_unlock_shared(dir->d_inode) ;
         dput(dir) ;
-        path_put(&file->f_path) ;
+        path_put(path) ;
         return ;
     }
 
@@ -219,6 +230,5 @@ REPLAY :
         goto REPLAY ;
     }
 
-    up_read(&file->f_inode->i_sb->s_umount) ;
     return ;
 }

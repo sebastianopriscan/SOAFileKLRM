@@ -11,12 +11,14 @@
 #include <linux/version.h>
 #include <linux/fdtable.h>
 #include <linux/cdev.h>
+#include <linux/namei.h>
 
 #include "include/oracles/oracles.h"
 
 path_decree *pathname_oracle(char *path) {
-    struct file * file ;
     path_decree *retval ;
+    struct inode *inode_solved ;
+    struct path *path_buf ;
 
     retval = kzalloc(8192, GFP_KERNEL) ;
     if (retval == NULL) {
@@ -24,27 +26,41 @@ path_decree *pathname_oracle(char *path) {
         return NULL ;
     }
 
-    file = filp_open(path, O_RDWR | O_PATH, 0) ;
-    if (IS_ERR(file)) {
-        printk("SOAFileKLRM : Unable to retrieve file") ;
+    path_buf = &retval->path_struct ;
+    kern_path(path, 0, path_buf) ;
+
+    if (path_buf->dentry == NULL) {
         kfree(retval) ;
+        printk("SOAFileKLRM : Unable to retrieve pathname for a file") ;
         return NULL ;
     }
-    path_get(&file->f_path) ;
-    inode_lock_shared(file->f_inode) ;
-    down_read(&file->f_inode->i_sb->s_umount) ;
-    retval->device = file->f_inode->i_sb->s_dev ;
-    retval->inode = file->f_inode->i_ino ;
-    retval->path = d_path(&file->f_path, (char *)retval + sizeof(path_decree), 8192 - sizeof(path_decree)) ;
-    up_read(&file->f_inode->i_sb->s_umount) ;
-    inode_unlock_shared(file->f_inode) ;
-    path_put(&file->f_path) ;
-    
-    retval->file = file ;
+
+    path_get(path_buf) ;
+    dget(path_buf->dentry) ;
+
+    inode_solved = d_inode(path_buf->dentry) ;
+    if (path_buf->dentry->d_inode == NULL) {
+        dput(path_buf->dentry) ;
+        path_put(path_buf) ;
+        kfree(retval) ;
+        printk("SOAFileKLRM : Unable to retrieve pathname for a file") ;
+        return NULL ;
+    }
+
+    inode_lock_shared(path_buf->dentry->d_inode) ;
+    down_read(&path_buf->dentry->d_inode->i_sb->s_umount) ;
+    retval->device = path_buf->dentry->d_inode->i_sb->s_dev ;
+    retval->inode = path_buf->dentry->d_inode->i_ino ;
+    retval->path = d_path(path_buf, (char *)retval + sizeof(path_decree), 8192 - sizeof(path_decree)) ;
+    up_read(&path_buf->dentry->d_inode->i_sb->s_umount) ;
+    inode_unlock_shared(path_buf->dentry->d_inode) ;
+    dput(path_buf->dentry) ;
+    path_put(path_buf) ;
 
     if (IS_ERR(retval->path)) {
+        dput(path_buf->dentry) ;
+        path_put(path_buf) ;
         printk("SOAFileKLRM : Unable to translate path") ;
-        filp_close(file, NULL) ;
         kfree(retval) ;
         return NULL;
     }

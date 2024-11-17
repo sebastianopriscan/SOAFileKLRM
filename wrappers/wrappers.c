@@ -32,7 +32,7 @@ module_param(the_syscall_table, ulong, 0660);
     if(!write_open_check) { \
         invocation \
     }\
-    if(state_machine_try_get_on()) {\
+    if(1) {\
         invocation \
     }\
     path = kmalloc(sizeof(klrm_path), GFP_KERNEL) ; \
@@ -40,22 +40,18 @@ module_param(the_syscall_table, ulong, 0660);
     if (path == NULL) { \
         printk("%s: Error allocating path to check with kmalloc", MODNAME) ; \
         kfree(path) ; \
-        state_machine_down() ; \
         return interdiction_return ; \
     } \
     if (copy_from_user(path->pathName, from_expr, expr_len) != 0) { \
         printk("%s: Error copying data from user", MODNAME) ; \
         kfree(path) ; \
-        state_machine_down() ; \
         return interdiction_return ; \
     } \
     if (path_store_check(path)) {  \
         kfree(path) ; \
-        state_machine_down() ; \
         return interdiction_return ; \
     } else { \
         kfree(path) ; \
-        state_machine_down() ; \
         invocation \
     } \
 

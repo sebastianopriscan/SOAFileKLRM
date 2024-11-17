@@ -7,7 +7,7 @@ typedef struct __path_decree {
     char *path ;
     dev_t device ;
     unsigned long inode ;
-    struct file *file ;
+    struct path path_struct ;
 } path_decree ;
 
 path_decree *pathname_oracle(char *) ;

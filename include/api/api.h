@@ -100,6 +100,7 @@ struct _klrm_input {
     klrm_path path ;
 } ;
 */
+ssize_t klrm_set(klrm_input *) ;
 
 /******** Operation recMachine: ********
     OPCODE    : 0b100
@@ -122,6 +123,7 @@ struct _klrm_input {
     klrm_path path ;
 } ;
 */
+ssize_t klrm_rec(klrm_input *) ;
 
 /*********** Lifecycle operations **********/
 

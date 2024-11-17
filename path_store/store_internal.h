@@ -42,7 +42,7 @@ int check_inode(dev_t, unsigned long) ;
 
 void refresh_nonces(unsigned long) ;
 
-void store_iterate_add(struct file *) ;
-void store_iterate_rm(struct file *) ;
+void store_iterate_add(struct path *) ;
+void store_iterate_rm(struct path *) ;
 
 #endif
