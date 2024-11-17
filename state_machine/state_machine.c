@@ -12,56 +12,73 @@
 
 #include "include/state_machine/state_machine.h"
 
-#define STATE_ON      0x4000000000000000
-#define STATE_OFF     0x0
-#define STATE_REC_ON  0xb000000000000000
-#define STATE_REC_OFF 0x8000000000000000
+struct rw_semaphore rec_sem, set_sem ;
 
-#define CLEAR_MACHINE 0x3fffffffffffffff
+typedef enum {
+    ON,
+    OFF
+} TOGGLE ;
 
-#define get_machine_state(state) \
-    do { \
-        if (__sync_bool_compare_and_swap(&machine_state_atomic, \
-            machine_state_atomic & ~CLEAR_MACHINE, state | 1UL)) \
-        break; \
-        \
-        if (__sync_bool_compare_and_swap(&machine_state_atomic, \
-            (machine_state_atomic & CLEAR_MACHINE) | state, machine_state_atomic+1UL)) \
-        break; \
-    } while (1) \
-
-
-volatile unsigned long machine_state_atomic = 0UL ;
+TOGGLE rec ;
+TOGGLE set ;
 
 void setup_state_machine(void) {
+    sema_init(&rec_sem, 0) ;
+    sema_init(&set_sem, 0) ;
 }
 
-int state_machine_try_get_on(void) {
-    __sync_fetch_and_add(&machine_state_atomic, 1UL) ;
-    if (machine_state_atomic & STATE_ON) return 0 ;
-    else {
-        __sync_fetch_and_sub(&machine_state_atomic, 1UL) ;
+void cleanup_state_machine(void) {
+
+}
+
+int state_machine_enter_on(void) {
+    down_read(&set_sem) ;
+    if (set == ON) {
         return 1 ;
+    } else {
+        up_read(&set_sem) ;
+        return 0 ;
     }
 }
 
-void state_machine_up(STATE_MACHINE_STATE state) {
-    switch (state) {
-        case ON :
-            get_machine_state(STATE_ON) ;
-            break;
-        case OFF :
-            get_machine_state(STATE_OFF) ;
-            break;
-        case REC_ON :
-            get_machine_state(STATE_REC_ON) ;
-            break;
-        case REC_OFF :
-            get_machine_state(STATE_REC_OFF) ;
-            break;
+void state_machine_exit(void) {
+    up_read(&set_sem) ;
+}
+
+int state_machine_enter_rec_on(void) {
+    down_read(&rec_sem) ;
+    if (rec == ON) {
+        return 1 ;
+    } else {
+        up_read(&rec_sem) ;
+        return 0 ;
     }
 }
 
-void state_machine_down(void) {
-    __sync_fetch_and_sub(&machine_state_atomic, 1UL) ;
+void state_machine_rec_exit(void) {
+    up_read(&rec_sem) ;
+}
+
+void set_machine_rec_on(void) {
+    down_write(&rec_sem) ;
+    rec = ON ;
+    up_write(&rec_sem) ;
+}
+
+void set_machine_rec_off(void) {
+    down_write(&rec_sem) ;
+    rec = OFF ;
+    up_write(&rec_sem) ;
+}
+
+void set_machine_on(void) {
+    down_write(&set_sem) ;
+    set = ON ;
+    up_write(&set_sem) ;
+}
+
+void set_machine_off(void) {
+    down_write(&set_sem) ;
+    set = OFF ;
+    up_write(&set_sem) ;
 }

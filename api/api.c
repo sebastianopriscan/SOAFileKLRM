@@ -11,6 +11,7 @@
 #include <linux/version.h>
 #include <linux/fdtable.h>
 #include <linux/fs_struct.h>
+#include <linux/namei.h>
 
 #include "include/api/api.h"
 #include "include/reconfig_access_manager/access_manager.h"
@@ -41,6 +42,7 @@ static int dev_release(struct inode *inode, struct file *file) {
     return 0 ;
 }
 
+//DEBUG ONLY
 static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len, loff_t * off) {
     path_decree *decree ;
     char write_buffer[128] ;
@@ -69,7 +71,7 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
 
     path_get(&file->f_path) ;
     printk("klrm: Got path") ;
-    inode_lock(file->f_inode) ;
+    inode_lock_shared(file->f_inode) ;
     printk("klrm: Got inode") ;
     down_read(&file->f_inode->i_sb->s_umount) ;
     printk("klrm: Got superblock") ;
@@ -86,15 +88,39 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
         printk("SOAFileKLRM : curr dname is: %px", &curr->d_name) ;
         printk("SOAFileKLRM : curr dname name is: %px", curr->d_name.name) ;
 
-        if(strcmp(".", curr->d_name.name) == 0 || strcmp("..", curr->d_name.name) == 0) {
-            printk("SOAFileKLRM : found one of . or .., skipping") ;
-            dput(curr) ;
-            continue;
-        }
-
         curr_inode = d_inode(curr) ;
         if (curr_inode != NULL) {
             printk("SOAFileKLRM : curr_inode is %px, curr.d_inode is %px", curr_inode, curr->d_inode) ;
+            if (d_is_symlink(curr)) {
+                char *link, *pth ;
+                printk("SOAFileKLRM : %s is a symlink", curr->d_name.name) ;
+                link = kmalloc(8192, GFP_KERNEL) ;
+                if (!IS_ERR(link)) {
+                    pth = dentry_path_raw(curr, link, 8192) ;
+                    if(IS_ERR(pth)) {
+                        kfree(link) ;
+                    } else {
+                        struct path resolved ;
+                        printk("SOAFileKLRM : entering kern_path") ;
+                        int result = kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
+                        printk("SOAFileKLRM : Exited kern_path") ;
+                        if (resolved.dentry != NULL) {
+                            dget(resolved.dentry) ;
+                            inode_lock_shared(resolved.dentry->d_inode) ;
+
+                            printk("SOAFileKLRM : This symlink with inode %ld points to inode %ld",
+                                curr_inode->i_ino, resolved.dentry->d_inode->i_ino) ;
+
+                            inode_unlock_shared(resolved.dentry->d_inode) ;
+                            dput(resolved.dentry) ;
+                        } else {
+                            printk("SOAFileKLRM : Path resolution went wrong, result is %d", result) ;
+                        }
+
+                        kfree(link) ;
+                    }
+                }
+            }
         } else continue ;
         //printk("SOAFileKLRM : locking inode %px", curr->d_inode) ; 
 
@@ -107,7 +133,7 @@ static ssize_t dev_write(struct file *filp, const char *udata, size_t udata_len,
     }
     
     up_read(&file->f_inode->i_sb->s_umount) ;
-    inode_unlock(file->f_inode) ;
+    inode_unlock_shared(file->f_inode) ;
     path_put(&file->f_path) ;
     filp_close(file, NULL) ;
     
@@ -172,8 +198,16 @@ static ssize_t dev_ioctl(struct file *filp, unsigned int code, unsigned long arg
             retval = klrm_path_rm(argp_copied) ;
             kmem_cache_free(input_cache, argp_copied) ;
             return retval ;
-        case CHECK_PATH :
+        case CHK_PATH :
             retval = klrm_path_check(argp_copied) ;
+            kmem_cache_free(input_cache, argp_copied) ;
+            return retval ;
+        case MACHINE_SET :
+            retval = klrm_set(argp_copied) ;
+            kmem_cache_free(input_cache, argp_copied) ;
+            return retval ;
+        case MACHINE_REC :
+            retval = klrm_rec(argp_copied) ;
             kmem_cache_free(input_cache, argp_copied) ;
             return retval ;
         default :

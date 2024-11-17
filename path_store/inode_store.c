@@ -177,7 +177,7 @@ void refresh_nonces(unsigned long work_unit) {
     nonce = 0 ;
     module_put(THIS_MODULE) ;
     kfree((void *)work_unit) ;
-    return 0 ;
+    return ;
 }
 
 void cleanup_inode_store(void) {

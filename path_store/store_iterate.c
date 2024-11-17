@@ -9,6 +9,7 @@
 #include <linux/ptrace.h>       
 #include <linux/syscalls.h>
 #include <linux/version.h>
+#include <linux/namei.h>
 
 #include "store_internal.h"
 
@@ -26,39 +27,86 @@ void store_iterate_add(struct file *file) {
     int insert_result ;
 
     path_get(&file->f_path) ;
-    inode_lock(file->f_inode) ;
+    dget(dir) ;
+    inode_lock_shared(file->f_inode) ;
     down_read(&file->f_inode->i_sb->s_umount) ;
-    insert_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
+    insert_result = insert_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
+    if(insert_result == -1) {
+        up_read(&file->f_inode->i_sb->s_umount) ;
+        inode_unlock_shared(file->f_inode) ;
+        dput(dir) ;
+        path_put(&file->f_path) ;
+        return ;
+    }
 
 REPLAY :
-    list_for_each(tmp, &dir->d_subdirs) {
-        struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+
+    if(d_is_symlink(dir)) {
         struct inode *curr_ino ;
         internal_stack *stkntry ;
-
-        dget(curr) ;
-
-        curr_ino = d_inode(curr) ;
-        if (curr_ino == NULL) {
-            dput(curr) ;
-            continue ;
-        }
-
-        inode_lock(curr->d_inode) ;
-
-        insert_result = insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
-
-        if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
+        curr_ino = d_inode(dir) ;
+        if (curr_ino != NULL) {
+            char *link , *pth;
             stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
-            stkntry->ptr = curr ;
-            list_add(&stkntry->list, &stack) ;
-        } else {
-            inode_unlock(curr->d_inode) ;
-            dput(curr) ;
+            if(!IS_ERR(stkntry)) {
+                link = kmalloc(8192, GFP_KERNEL) ;
+                if (!IS_ERR(link)) {
+                    pth = dentry_path_raw(dir, link, 8192) ;
+                    if(!IS_ERR(pth)) {
+                        struct path resolved ;
+                        printk("SOAFileKLRM : entering kern_path") ;
+                        kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
+                        printk("SOAFileKLRM : Exited kern_path") ;
+                        if (resolved.dentry != NULL) {
+                            struct inode *res_ino ;
+                            dget(resolved.dentry) ;
+                            res_ino = d_inode(resolved.dentry) ;
+                            if (res_ino != NULL) {
+                                inode_lock_shared(res_ino) ;
+                                stkntry->ptr = resolved.dentry;
+                                list_add(&stkntry->list, &stack) ;
+                            } else {
+                                dput(resolved.dentry) ;
+                            }
+                        }
+                    }
+                    kfree(stkntry) ;
+                    kfree(link) ;
+                } else {
+                    kfree(stkntry) ;
+                }
+            }
+        }
+    } else {
+        list_for_each(tmp, &dir->d_subdirs) {
+            struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+            struct inode *curr_ino ;
+            internal_stack *stkntry ;
+
+            dget(curr) ;
+
+            curr_ino = d_inode(curr) ;
+            if (curr_ino == NULL) {
+                dput(curr) ;
+                continue ;
+            }
+
+            inode_lock_shared(curr->d_inode) ;
+
+            insert_result = insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
+
+            if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
+                stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
+                stkntry->ptr = curr ;
+                list_add(&stkntry->list, &stack) ;
+            } else {
+                inode_unlock_shared(curr->d_inode) ;
+                dput(curr) ;
+            }
         }
     }
 
-    inode_unlock(dir->d_inode) ;
+    inode_unlock_shared(dir->d_inode) ;
     dput(dir) ;
 
     if(!list_empty(&stack)) {
@@ -81,38 +129,86 @@ void store_iterate_rm(struct file *file) {
     int insert_result ;
 
     path_get(&file->f_path) ;
-    inode_lock(file->f_inode) ;
+    dget(dir) ;
+    inode_lock_shared(file->f_inode) ;
     down_read(&file->f_inode->i_sb->s_umount) ;
-    rm_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
+    insert_result = rm_inode_ht(dir->d_inode->i_sb->s_dev, dir->d_inode->i_ino) ;
+    if(insert_result == -1) {
+        up_read(&file->f_inode->i_sb->s_umount) ;
+        inode_unlock_shared(file->f_inode) ;
+        dput(dir) ;
+        path_put(&file->f_path) ;
+        return ;
+    }
+
 REPLAY :
-    list_for_each(tmp, &dir->d_subdirs) {
-        struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+
+    if(d_is_symlink(dir)) {
         struct inode *curr_ino ;
         internal_stack *stkntry ;
-
-        dget(curr) ;
-
-        curr_ino = d_inode(curr) ;
-        if (curr_ino == NULL) {
-            dput(curr) ;
-            continue ;
-        }
-
-        inode_lock(curr->d_inode) ;
-
-        insert_result = rm_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
-
-        if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
+        curr_ino = d_inode(dir) ;
+        if (curr_ino != NULL) {
+            char *link , *pth;
             stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
-            stkntry->ptr = curr ;
-            list_add(&stkntry->list, &stack) ;
-        } else {
-            inode_unlock(curr->d_inode) ;
-            dput(curr) ;
+            if(!IS_ERR(stkntry)) {
+                link = kmalloc(8192, GFP_KERNEL) ;
+                if (!IS_ERR(link)) {
+                    pth = dentry_path_raw(dir, link, 8192) ;
+                    if(!IS_ERR(pth)) {
+                        struct path resolved ;
+                        printk("SOAFileKLRM : entering kern_path") ;
+                        kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
+                        printk("SOAFileKLRM : Exited kern_path") ;
+                        if (resolved.dentry != NULL) {
+                            struct inode *res_ino ;
+                            dget(resolved.dentry) ;
+                            res_ino = d_inode(resolved.dentry) ;
+                            if (res_ino != NULL) {
+                                inode_lock_shared(res_ino) ;
+                                stkntry->ptr = resolved.dentry;
+                                list_add(&stkntry->list, &stack) ;
+                            } else {
+                                dput(resolved.dentry) ;
+                            }
+                        }
+                    }
+                    kfree(stkntry) ;
+                    kfree(link) ;
+                } else {
+                    kfree(stkntry) ;
+                }
+            }
+        }
+    } else {
+        list_for_each(tmp, &dir->d_subdirs) {
+            struct dentry *curr = container_of(tmp, struct dentry, d_child) ;
+            struct inode *curr_ino ;
+            internal_stack *stkntry ;
+
+            dget(curr) ;
+
+            curr_ino = d_inode(curr) ;
+            if (curr_ino == NULL) {
+                dput(curr) ;
+                continue ;
+            }
+
+            inode_lock_shared(curr->d_inode) ;
+
+            insert_result = rm_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
+
+            if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
+                stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
+                stkntry->ptr = curr ;
+                list_add(&stkntry->list, &stack) ;
+            } else {
+                inode_unlock_shared(curr->d_inode) ;
+                dput(curr) ;
+            }
         }
     }
 
-    inode_unlock(dir->d_inode) ;
+    inode_unlock_shared(dir->d_inode) ;
     dput(dir) ;
 
     if(!list_empty(&stack)) {

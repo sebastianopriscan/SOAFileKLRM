@@ -31,13 +31,13 @@ path_decree *pathname_oracle(char *path) {
         return NULL ;
     }
     path_get(&file->f_path) ;
-    inode_lock(file->f_inode) ;
+    inode_lock_shared(file->f_inode) ;
     down_read(&file->f_inode->i_sb->s_umount) ;
     retval->device = file->f_inode->i_sb->s_dev ;
     retval->inode = file->f_inode->i_ino ;
     retval->path = d_path(&file->f_path, (char *)retval + sizeof(path_decree), 8192 - sizeof(path_decree)) ;
     up_read(&file->f_inode->i_sb->s_umount) ;
-    inode_unlock(file->f_inode) ;
+    inode_unlock_shared(file->f_inode) ;
     path_put(&file->f_path) ;
     
     retval->file = file ;

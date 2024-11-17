@@ -73,6 +73,7 @@ static struct kmem_cache *dir_cache ;
 unsigned int argIdxs[ARGS_SIZE] ;
 
 rwlock_t store_lock ;
+unsigned long long nonce = 0;
 
 static inline unsigned int process_path(char *path) {
     unsigned int i, j ;
@@ -187,7 +188,6 @@ int path_store_rm(klrm_path *path) {
     path_decree *resolved ;
     char *examinated = path->pathName ;
     int isResolved = 0 ;
-    int nonce_refresh = 0 ;
 
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {

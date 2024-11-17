@@ -20,8 +20,12 @@
 ssize_t klrm_path_add(klrm_input *input) {
 
     ssize_t ret ;
+    int state_machine_ret ;
 
-    state_machine_up(REC_ON) ;
+    state_machine_ret = state_machine_enter_rec_on() ;
+    if (state_machine_ret == 0) {
+        return -EBUSY ;
+    }
 
     printk("klrm: Got state machine in REC_ON mode") ;
 
@@ -35,15 +39,19 @@ ssize_t klrm_path_add(klrm_input *input) {
 
     printk("klrm: added entry to path store") ;
 
-    state_machine_down() ;
+    state_machine_rec_exit() ;
     return ret ;
 }
 
 ssize_t klrm_path_rm(klrm_input *input) {
 
     ssize_t ret ;
+    int state_machine_ret ;
 
-    state_machine_up(REC_ON) ;
+    state_machine_ret = state_machine_enter_rec_on() ;
+    if (state_machine_ret == 0) {
+        return -EBUSY ;
+    }
 
     if (check_password(input->password) != 0) {
         return -EACCES ;
@@ -51,15 +59,19 @@ ssize_t klrm_path_rm(klrm_input *input) {
 
     ret = path_store_rm(&input->path) ;
 
-    state_machine_down() ;
+    state_machine_rec_exit() ;
     return ret ;
 }
 
 ssize_t klrm_path_check(klrm_input *input) {
 
     ssize_t ret ;
+    int state_machine_ret ;
 
-    state_machine_up(REC_ON) ;
+    state_machine_ret = state_machine_enter_rec_on() ;
+    if (state_machine_ret == 0) {
+        return -EBUSY ;
+    }
 
     if (check_password(input->password) != 0) {
         return -EACCES ;
@@ -67,7 +79,7 @@ ssize_t klrm_path_check(klrm_input *input) {
 
     ret = path_store_check(&input->path) ;
 
-    state_machine_down() ;
+    state_machine_rec_exit() ;
 
     switch(ret) {
         case FULL_MATCH_LEAF:
@@ -88,4 +100,44 @@ ssize_t klrm_path_check(klrm_input *input) {
     }
 
     return ret ;
+}
+
+ssize_t klrm_set(klrm_input *input) {
+
+    ssize_t ret ;
+
+    if (check_password(input->password) != 0) {
+        return -EACCES ;
+    }
+
+    if(strcmp(input->path.pathName, "on") == 0) {
+        set_machine_on() ;
+        return 0 ;
+    } else if(strcmp(input->path.pathName, "off") == 0) {
+        set_machine_off() ;
+        return 0 ;
+    } else {
+        return -EINVAL ;
+    }
+
+}
+
+ssize_t klrm_rec(klrm_input *input) {
+
+    ssize_t ret ;
+
+    if (check_password(input->password) != 0) {
+        return -EACCES ;
+    }
+
+    if(strcmp(input->path.pathName, "on") == 0) {
+        set_machine_rec_on() ;
+        return 0 ;
+    } else if(strcmp(input->path.pathName, "off") == 0) {
+        set_machine_rec_off() ;
+        return 0 ;
+    } else {
+        return -EINVAL ;
+    }
+
 }
