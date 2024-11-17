@@ -46,7 +46,7 @@ LOOP_LABEL: \
         child = list_entry(tmp, store_entry, siblings) ; \
         prntt = list_entry(curr_entry, store_entry, children) ;\
         printk("%s: looping over %s children, now it's %s", MODNAME, prntt->dir_name, child->dir_name) ; \
-        if (strcmp(child->dir_name, path->pathName + argIdxs[deepness]) == 0) { \
+        if (strcmp(child->dir_name, examinated + argIdxs[deepness]) == 0) { \
             curr_entry = &(child->children) ; \
             deepness++ ; \
             printk("klrm : deepness incremented to %d", deepness) ; \
@@ -112,11 +112,15 @@ int path_store_add(klrm_path *path) {
     unsigned int deepness = 0 ;
     unsigned int isResolved = 0 ;
 
+    printk("SOAFileKLRM : pathname is %s : ", path->pathName) ;
+
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {
         examinated = resolved->path ;
         isResolved = 1 ;
     }
+    
+    printk("SOAFileKLRM : Resolved examinated as %s", examinated) ;
 
     j = process_path(examinated) ;
     if (j == UINT_MAX) {
@@ -133,14 +137,14 @@ int path_store_add(klrm_path *path) {
     if (deepness != j ) {
         store_entry *newChild ;
 
-        if (strlen(path->pathName + argIdxs[deepness]) == 0) {
+        if (strlen(examinated + argIdxs[deepness]) == 0) {
             clean_oracle_decree(resolved, isResolved) ;
             return 1 ;
         }
         newChild = kmem_cache_alloc(dir_cache, GFP_KERNEL) ;
         init_store_entry(newChild) ;
-        memcpy(newChild->dir_name, path->pathName + argIdxs[deepness],
-            strlen(path->pathName + argIdxs[deepness])) ;
+        memcpy(newChild->dir_name, examinated + argIdxs[deepness],
+            strlen(examinated + argIdxs[deepness])) ;
 
         list_add(&newChild->siblings, curr_entry) ;
         list_add(&newChild->allocations, &allocations) ;
@@ -194,7 +198,7 @@ int path_store_rm(klrm_path *path) {
         isResolved = 1 ;
     }
 
-    j = process_path(path->pathName) ;
+    j = process_path(examinated) ;
     if (j == UINT_MAX) {
         clean_oracle_decree(resolved, isResolved) ;
         return 1 ;

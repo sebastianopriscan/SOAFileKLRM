@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
     else 
         input->password[idx] = '\0' ;
 
-    strcpy(input->path.path, argv[3]) ;
+    strcpy(input->path.path, argv[2]) ;
 
     int fd = open("/dev/klrm-api", O_RDWR) ;
     if (fd == -1) {

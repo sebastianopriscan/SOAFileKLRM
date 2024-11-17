@@ -45,20 +45,26 @@ void store_iterate_add(struct path *path) {
         return ;
     }
 
+
 REPLAY :
 
+    printk("KLRM_ITERATE : iterating over %s", dir->d_name.name) ;
     if(d_is_symlink(dir)) {
         struct inode *curr_ino ;
-        internal_stack *stkntry ;
+        internal_stack *stkntry = NULL;
         curr_ino = d_inode(dir) ;
         if (curr_ino != NULL) {
-            char *link , *pth;
+            char *link = NULL , *pth = NULL ;
             stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
+            printk("KLRM_ITERATE : stkentry is %px", stkntry) ;
             if(!IS_ERR(stkntry)) {
                 link = kmalloc(8192, GFP_KERNEL) ;
+                printk("KLRM_ITERATE : link is %px", link) ;
                 if (!IS_ERR(link)) {
                     pth = dentry_path_raw(dir, link, 8192) ;
+                    printk("KLRM_ITERATE : pth is %px", pth) ;
                     if(!IS_ERR(pth)) {
+                        printk("KLRM_ITERATE : pth as string is %s", pth) ;
                         struct path resolved ;
                         printk("SOAFileKLRM : entering kern_path") ;
                         kern_path(pth, LOOKUP_FOLLOW , &resolved) ;
@@ -66,17 +72,33 @@ REPLAY :
                         if (resolved.dentry != NULL) {
                             struct inode *res_ino ;
                             dget(resolved.dentry) ;
+                            printk("SOAFileKLRM : Resolved dentry") ;
                             res_ino = d_inode(resolved.dentry) ;
                             if (res_ino != NULL) {
-                                inode_lock_shared(res_ino) ;
-                                stkntry->ptr = resolved.dentry;
-                                list_add(&stkntry->list, &stack) ;
+                                int insert_result ;
+                                printk("SOAFileKLRM : Resolved inode") ;
+                                inode_lock_shared(resolved.dentry->d_inode) ;
+                                insert_result = insert_inode_ht(resolved.dentry->d_inode->i_sb->s_dev,
+                                    resolved.dentry->d_inode->i_ino) ;
+                                
+                                if (insert_result != -1) {
+                                    stkntry->ptr = resolved.dentry;
+                                    list_add(&stkntry->list, &stack) ;
+                                } else {
+                                    kfree(stkntry) ;
+                                    inode_unlock_shared(resolved.dentry->d_inode) ;
+                                    dput(resolved.dentry) ;
+                                }
+
                             } else {
                                 dput(resolved.dentry) ;
                             }
+                        } else {
+                            kfree(stkntry) ;
                         }
+                    } else {
+                        kfree(stkntry) ;
                     }
-                    kfree(stkntry) ;
                     kfree(link) ;
                 } else {
                     kfree(stkntry) ;
@@ -91,17 +113,21 @@ REPLAY :
 
             dget(curr) ;
 
+            printk("KLRM_ITERATE : parent : %s, child %s", dir->d_name.name, curr->d_name.name) ;
+
             curr_ino = d_inode(curr) ;
             if (curr_ino == NULL) {
                 dput(curr) ;
                 continue ;
             }
+            
+            printk("KLRM_ITERATE : solved inode") ;
 
             inode_lock_shared(curr->d_inode) ;
 
             insert_result = insert_inode_ht(curr->d_inode->i_sb->s_dev, curr->d_inode->i_ino) ;
 
-            if(!list_empty(&curr->d_subdirs) && insert_result != -1) {
+            if(insert_result != -1) {
                 stkntry = kmalloc(sizeof(internal_stack), GFP_KERNEL) ;
                 stkntry->ptr = curr ;
                 list_add(&stkntry->list, &stack) ;

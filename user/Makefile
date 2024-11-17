@@ -14,7 +14,7 @@ logfilemakefs : logfilemakefs.c
 	gcc -Wall -Wextra logfilemakefs.c -o logfilemakefs
 
 klrmctl : client.c
-	gcc -Wall -Wextra client.c -o 
+	gcc -Wall -Wextra client.c -o klrmctl
 
 stop :
 	-sudo umount ./mount

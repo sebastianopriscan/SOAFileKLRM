@@ -30,12 +30,15 @@ static inline int inode_allocate(store_fs * store, unsigned long inode) {
         node = container_of(tmp, inode_ht, peers) ;
         if (node->num == inode) {
 
+            printk("INODE_STORE : Matched entry in table") ;
             if (node->stamp < nonce) {
+                printk("INODE_STORE : Entry was not seen") ;
                 node->refCount++ ;
                 node->stamp = nonce ;
                 return 1 ;
             }
 
+            printk("INODE_STORE : Entry seen, returning -1") ;
             return -1 ;
         }
     }
@@ -47,8 +50,9 @@ static inline int inode_allocate(store_fs * store, unsigned long inode) {
     }
     node->num = inode ;
     node->refCount++ ;
-    node->stamp = nonce ;
+    node->stamp = 0 ;
     list_add(&node->peers, &(store->inodes[inode % HASH_TABLE_SIZE])) ;
+    printk("INODE_STORE : Entry not seen, allocated") ;
     return 1 ;
 }
 
@@ -58,9 +62,11 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
     store_fs *store ;
     int i ;
 
+    printk("INODE_STORE : Called with dev_t %d, inode %d", table, inode) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
+            printk("INODE_STORE : Table already allocated") ;
             return inode_allocate(store, inode) ;
         }
     }
@@ -78,6 +84,7 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
     }
 
     list_add(&store->stores, &fs_stores) ;
+    printk("INODE_STORE : New Table allocated and linked") ;
     return inode_allocate(store, inode) ;    
 }
 
