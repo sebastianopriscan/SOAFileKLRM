@@ -62,7 +62,7 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
     store_fs *store ;
     int i ;
 
-    printk("INODE_STORE : Called with dev_t %d, inode %d", table, inode) ;
+    printk("INODE_STORE : Called with dev_t %d, inode %ld", table, inode) ;
     list_for_each(tmp, &fs_stores) {
         store = container_of(tmp, store_fs, stores) ;
         if (store->numbers == table) {
@@ -76,6 +76,8 @@ int insert_inode_ht(dev_t table, unsigned long inode) {
         printk("%s : Error allocating new fs cache, aborting add", MODNAME) ;
         return 0 ;
     }
+
+    store->numbers = table ;
     store->stores.next = &store->stores ;
     store->stores.prev = &store->stores ;
     for (i = 0 ; i < HASH_TABLE_SIZE ; i++) {
@@ -206,10 +208,12 @@ void cleanup_inode_store(void) {
                 }
                 prevNode = itmp ;
             }
-            toDelete = container_of(prevNode, inode_ht, peers) ;
-            list_del(prevNode) ;
-            kmem_cache_free(inodes_cache, toDelete) ;
-            prevNode = NULL ;
+            if (prevNode != NULL) {
+                toDelete = container_of(prevNode, inode_ht, peers) ;
+                list_del(prevNode) ;
+                kmem_cache_free(inodes_cache, toDelete) ;
+                prevNode = NULL ;
+            }
         }
         if (prevStore != NULL) {
             toDeleteStore = container_of(prevStore, store_fs, stores) ;

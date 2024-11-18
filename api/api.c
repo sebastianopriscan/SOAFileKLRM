@@ -22,7 +22,7 @@
 #define API_DEV_NAME "soa-file-klrm-api-dev"
 #define MODNAME "SOAFileKLRM"
 
-#define CODE_MASK 0xc0000000U
+#define CODE_MASK 0xe0000000U
 #define CHECK_PATH 0x40000000
 
 extern ssize_t klrm_path_check(klrm_input *input) ;

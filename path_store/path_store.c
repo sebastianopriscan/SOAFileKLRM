@@ -118,7 +118,7 @@ int path_store_add(klrm_path *path) {
     if (resolved != NULL) {
         examinated = resolved->path ;
         isResolved = 1 ;
-    }
+    } 
     
     printk("SOAFileKLRM : Resolved examinated as %s", examinated) ;
 
@@ -157,24 +157,26 @@ int path_store_add(klrm_path *path) {
     actualCurrent = container_of(curr_entry, store_entry, children) ;
     actualCurrent->children_num = actualCurrent->children_num | EXPLICITED_PATH_MASK ;
 
-    nonce++ ;
-    store_iterate_add(&resolved->path_struct) ;
-    if (unlikely(nonce == ULLONG_MAX)) {
-        //This will unlock the store
-        struct work_struct *work_unit = kmalloc(sizeof(struct work_struct), GFP_KERNEL) ;
-        if (IS_ERR(work_unit)) {
-            write_unlock(&store_lock) ;
-        } else {
-            __INIT_WORK(work_unit, (void *)refresh_nonces, (unsigned long)work_unit) ;
-            if (try_module_get(THIS_MODULE)) {
-                //module_put(THIS_MODULE) ;
-                //kfree(work_unit) ;
-                schedule_work(work_unit) ;
+    if (isResolved) {
+        nonce++ ;
+        store_iterate_add(&resolved->path_struct) ;
+        if (unlikely(nonce == ULLONG_MAX)) {
+            //This will unlock the store
+            struct work_struct *work_unit = kmalloc(sizeof(struct work_struct), GFP_KERNEL) ;
+            if (IS_ERR(work_unit)) {
+                write_unlock(&store_lock) ;
+            } else {
+                __INIT_WORK(work_unit, (void *)refresh_nonces, (unsigned long)work_unit) ;
+                if (try_module_get(THIS_MODULE)) {
+                    //module_put(THIS_MODULE) ;
+                    //kfree(work_unit) ;
+                    schedule_work(work_unit) ;
+                }
             }
         }
-    }
-    else {
-        write_unlock(&store_lock) ;
+        else {
+            write_unlock(&store_lock) ;
+        }
     }
 
     clean_oracle_decree(resolved, isResolved) ;
@@ -198,11 +200,15 @@ int path_store_rm(klrm_path *path) {
         isResolved = 1 ;
     }
 
+    printk("SOAFileKLRM : On path store rm, orig pathname is %s, examinated as %s", path->pathName, examinated) ;
+
     j = process_path(examinated) ;
     if (j == UINT_MAX) {
         clean_oracle_decree(resolved, isResolved) ;
         return 1 ;
     }
+
+    printk("SOAFileKLRM : j is %d", j) ;
     
     write_lock(&store_lock) ;
 
@@ -212,20 +218,31 @@ int path_store_rm(klrm_path *path) {
         store_entry *parent ;
         store_entry *actualCurrent = list_entry(curr_entry, store_entry, children) ;
         if (!(actualCurrent->children_num & EXPLICITED_PATH_MASK)) {
+            printk("SOAFileKLRM : child was not explicited") ;
             write_unlock(&store_lock) ;
             clean_oracle_decree(resolved, isResolved) ;
             return 1 ;
         }
-        nonce++ ;
-        store_iterate_rm(&resolved->path_struct) ;
 
-        if (actualCurrent->children_num != 0) {
+        if (isResolved) {
+            nonce++ ;
+            store_iterate_rm(&resolved->path_struct) ;
+        }
+
+        if ((actualCurrent->children_num & ~EXPLICITED_PATH_MASK) != 0) {
+            printk("SOAFileKLRM : the entry had children, deactivated") ;
             actualCurrent->children_num = actualCurrent->children_num & ~EXPLICITED_PATH_MASK ;
         } else {
+            actualCurrent->children_num = actualCurrent->children_num & ~EXPLICITED_PATH_MASK ;
             do {
+                printk("SOAFileKLRM : going up by one") ;
                 if (actualCurrent == root ||
-                    actualCurrent->children_num != 0 || 
-                    actualCurrent->children_num & EXPLICITED_PATH_MASK) break;
+                    (actualCurrent->children_num & ~EXPLICITED_PATH_MASK ) != 0 || 
+                    actualCurrent->children_num & EXPLICITED_PATH_MASK) {
+
+                    printk("SOAFileKLRM : stopped") ; 
+                    break;
+                }
 
                 parent = actualCurrent->parent ;
                 actualCurrent->parent->children_num-- ;
@@ -274,6 +291,7 @@ PATH_CHECK_RESULT path_store_check(klrm_path *path) {
     unsigned int deepness = 0 ;
     int retVal, isResolved = 0 ;
 
+    printk("SOAFileKLRM : Path before oracle is: %s", path->pathName) ;
     resolved = pathname_oracle(path->pathName) ;
     if (resolved != NULL) {
         if (check_inode(resolved->device, resolved->inode)) {
@@ -284,12 +302,14 @@ PATH_CHECK_RESULT path_store_check(klrm_path *path) {
         }
         examinated = resolved->path ;
     }
+    printk("SOAFileKLRM : Path after oracle is: %s", path->pathName) ;
 
     j = process_path(examinated) ;
     if (j == UINT_MAX) {
         clean_oracle_decree(resolved, isResolved) ;
         return 1 ;
     }
+    printk("SOAFileKLRM : Path store check deepness is %d", j) ;
 
     read_lock(&store_lock) ;
 

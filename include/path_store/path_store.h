@@ -9,7 +9,8 @@ typedef enum _path_check_result {
     FULL_MATCH_DIR,
     SUB_MATCH_LEAF,
     SUB_MATCH_DIR,
-    MATCH_INODE
+    MATCH_INODE,
+    MATCH_UNSOLVED
 } PATH_CHECK_RESULT ;
 
 int path_store_add(klrm_path *path) ;

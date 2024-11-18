@@ -4,6 +4,12 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 
+#define ADD_PATH 0x00000000
+#define RM_PATH 0x20000000
+#define CHK_PATH 0x40000000
+#define MACHINE_SET 0x60000000
+#define MACHINE_REC 0x80000000
+
 typedef struct {
     char path[4096] ;
 } klrm_path ;
@@ -53,21 +59,21 @@ int main(int argc, char **argv) {
 
     if (strcmp(argv[1], "add") == 0) {
         fprintf(stderr, "Inside add path\n") ;
-        int retval = ioctl(fd, (unsigned int) sizeof(klrm_input), input) ;
+        int retval = ioctl(fd, ADD_PATH | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
 
     if (strcmp(argv[1], "rm") == 0) {
         fprintf(stderr, "Inside rm path\n") ;
-        int retval = ioctl(fd, 0x80000000 | (unsigned int) sizeof(klrm_input), input) ;
+        int retval = ioctl(fd, RM_PATH | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
 
     if (strcmp(argv[1], "check") == 0) {
         fprintf(stderr, "Inside check path\n") ;
-        int retval = ioctl(fd, 0x40000000 | (unsigned int) sizeof(klrm_input), input) ;
+        int retval = ioctl(fd, CHK_PATH | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
@@ -78,7 +84,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Usage : klrmctl rec on/off\n") ;
             return 1 ;
         }
-        int retval = ioctl(fd, 0x40000000 | (unsigned int) sizeof(klrm_input), input) ;
+        int retval = ioctl(fd, MACHINE_REC | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
@@ -89,7 +95,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Usage : klrmctl set on/off\n") ;
             return 1 ;
         }
-        int retval = ioctl(fd, 0x40000000 | (unsigned int) sizeof(klrm_input), input) ;
+        int retval = ioctl(fd, MACHINE_SET | (unsigned int) sizeof(klrm_input), input) ;
         fprintf(stderr, "ioctl returned %d\n", retval) ;
         return 0 ;
     }
