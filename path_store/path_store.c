@@ -247,6 +247,7 @@ int path_store_rm(klrm_path *path) {
                 parent = actualCurrent->parent ;
                 actualCurrent->parent->children_num-- ;
                 list_del(&(actualCurrent->siblings)) ;
+                list_del(&(actualCurrent->allocations)) ;
                 kmem_cache_free(dir_cache, actualCurrent) ;
                 actualCurrent = parent ;
 
