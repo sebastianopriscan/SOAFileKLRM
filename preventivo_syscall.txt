@@ -1,0 +1,62 @@
+
+open : funzionante
+
+openat : replicare open (quasi funzionante)
+
+truncate : Non esportato non privato
+
+ftruncate : Non problematica se bloccate le open
+
+rename : Non esportato non privato
+
+mkdir : Non esportata privata
+\
+ \_ user_path_create : esportata
+ |_ security_path_mkdir : esportata/ doppia definizione?
+ |_ mode_strip_umask : da ricopiare
+ |_ vfs_mkdir : esportata
+ |_ done_path_create : esportata
+ |_ retry_estale : di header
+ |
+ |_*ESITO : da ricopiare*
+
+rmdir : Non esporata non privata
+
+creat : replicare open
+
+link : Non esportata privata
+\
+ \
+ |_ capable : esportata
+ |_ user_path_at : di libreria
+ |_ user_path_create : esportata
+ |_ may_linkat : non esportata non privata
+ |_ security_path_link : non esportata non privata
+ |_ vfs_link : esportata
+ |_ done_path_create : esportata
+ |_ break_deleg_wait : di header
+ |_ retry_estale : di header
+ |
+ |_*ESITO : da ricopiare*
+
+unlink : non esportata non privata
+
+symlink : non esportata privata
+\
+ \
+ |_ getname : non esportata privata
+ |_ user_path_name : esportata
+ |_ security_path_symlink : non esportata non privata
+ |_ vfs_symlink : esportata
+ |_ done_path_create : esportata
+ |_ retry_estale : di header
+ |
+ |_*ESITO : da ricopiare*
+
+mknod : non esportata privata
+\
+ \
+ |_ *ESITO : da ricopiare fino a prova contraria*
+
+
+Le chiamate *at hanno gli stessi requisiti delle loro controparti
